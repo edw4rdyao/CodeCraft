@@ -1,1 +1,2 @@
-.\judge\PreliminaryJudge.exe -m .\judge\maps\map1.txt .\build\main.exe
+cd .\judge
+.\PreliminaryJudge.exe -m .\maps\map1.txt ..\build\main.exe -l NONE
