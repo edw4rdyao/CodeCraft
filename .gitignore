@@ -34,3 +34,15 @@
 /.vscode
 /build
 /judge
+
+# Debug files
+cmake-build-debug
+
+# idea
+.idea
+
+# MacOS
+.DS_Store
+
+# Source
+MacOSReleasev1.1

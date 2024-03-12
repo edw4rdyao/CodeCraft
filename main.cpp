@@ -1,4 +1,10 @@
+#ifdef _WIN32
 #include <bits/stdc++.h>
+#else
+#include <iostream>
+#include <cstdlib>
+#endif
+
 using namespace std;
 
 const int n = 200;
