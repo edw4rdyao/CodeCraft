@@ -46,3 +46,7 @@ cmake-build-debug
 
 # Source
 MacOSReleasev1.1
+
+# 脚本
+*.sh
+*.bat
