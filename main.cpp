@@ -82,44 +82,42 @@ struct Boat
 }boat[boat_num];
 
 int money, boat_capacity, frame; // 金钱，船的容量，当前帧数
-int map[N][N]; // 地图
+int world[N][N]; // 地图
 int berth_path[berth_num][N][N] = {0}; // 泊位到每个点的最短路径(1: 上，2: 下，3: 左，4: 右)
 int berth_path_len[berth_num][N][N] = {0}; // 泊位到每个点的最短路径长度
 
 
 void Init()
 {
-    for(int i = 0; i < N; i ++)
+    for(int i = 0; i < N; i++)
     {
-        for(int j = 0; j < N; j ++)
+        for(int j = 0; j < N; j++)
         {
             char ch;
             scanf("%c", &ch);
-            if(ch == '.')
+            if(ch == '.' || ch == 'A')
             {
-                map[i][j] = 0; // 空地
+                world[i][j] = 0; // 空地
             }
             else if(ch == '*')
             {
-                map[i][j] = 1; // 海洋
+                world[i][j] = 1; // 海洋
             }
             else if(ch == '#')
             {
-                map[i][j] = 2; // 障碍
-            }
-            else if(ch == 'A')
-            {
-                map[i][j] = 0; // 空地
+                world[i][j] = 2; // 障碍
             }
             else if(ch == 'B')
             {
-                map[i][j] = 3; // 港口
+                world[i][j] = 3; // 港口
             }
             else
             {
-                map[i][j] = -1; // 其他
+                world[i][j] = -1; // 其他
             }
         }
+        char ch;
+        scanf("%c", &ch);
     }
 
     for(int i = 0; i < berth_num; i++)
@@ -168,7 +166,7 @@ int main()
     for(int zhen = 1; zhen <= 15000; zhen++)
     {
         int id = Input();
-        for(int i = 0; i < robot_num; i ++)
+        for(int i = 0; i < robot_num; i++)
             printf("move %d %d\n", i, rand() % 4);
         puts("OK");
         fflush(stdout);
