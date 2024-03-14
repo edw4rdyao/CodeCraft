@@ -18,6 +18,7 @@ struct Goods
     int x, y;  // 货物的坐标
     int val;   // 货物的价值
     int refresh_frame;  // 货物的刷新帧数
+    int lock; // 货物是否被机器人锁定
 
     Goods() {}
     Goods(int x, int y, int val, int refresh_frame) {
