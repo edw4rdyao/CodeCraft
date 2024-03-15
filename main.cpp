@@ -17,6 +17,10 @@ const int robot_num = 10;
 const int berth_num = 10;
 const int boat_num = 5;
 const int N = 200;
+const int dx[4] = {-1, 1, 0, 0}; // 每个方向x轴的偏移
+const int dy[4] = {0, 0, -1, 1}; // 每个方向y轴的偏移
+const int reverse_direction[4] = {1, 0, 3, 2}; // 上下左右的反方向：下上右左
+
 
 int money, boat_capacity, frame; // 金钱，船的容量，当前帧数
 int world[N][N]; // 地图
@@ -116,6 +120,7 @@ struct Boat
             }
             else if(busy_berth.find(i) == busy_berth.end()) // 泊位是空闲的
             {
+                // 
                 int load_time = berths[i].goods_queue.size() / berths[i].loading_speed;
                 int value_time_tmp = berths[i].SumGoodsValue() / load_time;
                 if(value_time_tmp > value_time)
@@ -222,9 +227,7 @@ void BoatDispatch()
     }
 }
 
-const int dx[4] = {-1, 1, 0, 0}; // 每个方向x轴的偏移
-const int dy[4] = {0, 0, -1, 1}; // 每个方向y轴的偏移
-const int reverse_direction[4] = {1, 0, 3, 2}; // 上下左右的反方向：下上右左
+
 
 vector<int> GetRandomDirection()
 {
@@ -265,7 +268,7 @@ void ToBerthBFS()
                 if(nx >= 0 && ny < N && ny >= 0 && ny < N && (world[nx][ny] == 0 || world[nx][ny] == 3)  && berth_path_len[b][nx][ny] < 0)
                 {
                     // 路径长度+1
-                    berth_path_len[b][nx][ny] = berth_path_len[b][cur_pos.first][cur_pos.second];
+                    berth_path_len[b][nx][ny] = berth_path_len[b][cur_pos.first][cur_pos.second] + 1;
                     // 记录路径的方向
                     berth_path[b][nx][ny] = reverse_direction[dir];
                     // 将该点加入队列
@@ -427,6 +430,7 @@ struct Road //物品id、最近港口、机器人下一步方向
     }
 };
 
+// TODO: BFS里记录路径
 // 使用BFS算法找到最好的3个物品,返回物品index、最近港口和下一步方向
 vector<Road> ToGoodsBFS(int robot_index, int total_step){
     int robot_x, robot_y; // 机器人的坐标
@@ -570,6 +574,7 @@ int RobotFindGoods(){
         }
 
         if (IsInGoods(i)){ //在物品上
+            goods[robots[i].goods_index].lock = 0; //物品解锁
             int j = 0;
             for (j = 0; j < roads[i].size(); j++){
                 int goods_id = roads[i][j].goods_index;
@@ -599,7 +604,7 @@ int RobotFindGoods(){
                         break;
                     }
                 }
-                if (j == roads[i].size()){ //没东西拿
+                if (k == roads[i].size()){ //没东西拿
                     goods[robots[i].goods_index].lock = 0; //物品解锁
                     robots[i].dir = -1; //罚站
                 }
@@ -628,12 +633,53 @@ int RobotFindGoods(){
 }
 
 
-
-
-
-
-
-
+void AvoidCollision()
+{
+    bool isCollision = true;
+    while(isCollision)
+    {
+        isCollision = false;
+        // 对每个机器人进行碰撞检测
+        for(int ri = 0; ri < robot_num; ri ++)
+        {
+            // 如果这个机器人没有被困死并且下一步会移动
+            if(!robots[ri].is_dead && robots[ri].dir >= 0)
+            {
+                // 机器人i下一步的位置
+                int nx = robots[ri].x + dx[robots[ri].dir];
+                int ny = robots[ri].y + dy[robots[ri].dir];
+                // 检测除自己之外其他机器人会不会在这个位置上
+                // （不移动的机器人看当前位置，会移动的机器人分析是对冲还是抢位置）
+                for(int rj = 0; rj < robot_num; rj ++)
+                {
+                    if(ri != rj)
+                    {
+                        // 碰上不移动的机器人j，则机器人i自己也不动（停一帧）
+                        if(robots[rj].dir < 0 && robots[rj].x == nx && robots[rj].y == ny)
+                        {
+                            isCollision = true;
+                            robots[ri].dir = -1;
+                            break;
+                        }
+                        // 碰上移动的机器人j
+                        if(robots[rj].dir > 0)
+                        {
+                            if(robots[rj].x == nx && robots[rj].y && (robots[rj].dir / 2 == robots[rj].dir / 2))
+                            {
+                                // 
+                            }
+                        }
+                    }
+                }
+                // 如果有碰撞并且规避了，就跳出，需要重新检测碰撞
+                if(isCollision)
+                {
+                    break;
+                }
+            }
+        }
+    }
+}
 
 
 
