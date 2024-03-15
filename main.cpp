@@ -239,7 +239,13 @@ int Input() {
     for (int i = 0; i < robot_num; i++) {
         int is_goods, x, y, status;
         scanf("%d%d%d%d", &is_goods, &x, &y, &status);
-        robots[i] = Robot(x, y, is_goods, status);
+        // robots[i] = Robot(x, y, is_goods, status);
+        robots[i].x = x;
+        robots[i].y = y;
+        robots[i].is_goods = is_goods;
+        robots[i].status = status;
+
+
     }
     for (int i = 0; i < boat_num; i++) {
         int status, pos;
@@ -326,7 +332,7 @@ vector<Road> ToGoodsBFS(int robot_index, int total_step){
             int dir = direction.front(); 
             direction.pop();
 
-            if (world[x][y]-100 >= 0) { // 找到物品
+            if (world[x][y]-100 >= 0 && step <= goods[world[x][y]-100].refresh_frame) { // 找到物品
                 int berth_index;
                 int current_val = CalculateGoodsValue(world[x][y]-100, step, berth_index); //计算物品性价比
                 if (best_goods.size() < 3){ //已找到小于三个
@@ -496,14 +502,6 @@ int RobotFindGoods(){
         }
     }
 }
-
-
-
-
-
-
-
-
 
 
 
