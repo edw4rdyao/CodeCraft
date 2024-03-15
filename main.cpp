@@ -1,10 +1,14 @@
 #ifdef _WIN32
 #include <bits/stdc++.h>
 #else
-#include <iostream>
 #include <cstdlib>
 #include <queue>
 #include <vector>
+#include <cstdio>
+#include <algorithm>
+#include <set>
+#include <random>
+#include <cstring>
 #endif
 
 using namespace std;
@@ -13,6 +17,11 @@ const int robot_num = 10;
 const int berth_num = 10;
 const int boat_num = 5;
 const int N = 200;
+
+int money, boat_capacity, frame; // 金钱，船的容量，当前帧数
+int world[N][N]; // 地图
+int berth_path[berth_num][N][N] = {0}; // 泊位到每个点的最短路径(1: 上，2: 下，3: 左，4: 右)
+int berth_path_len[berth_num][N][N] = {0}; // 泊位到每个点的最短路径长度
 
 struct Goods
 {
@@ -29,7 +38,7 @@ struct Goods
         this -> refresh_frame = refresh_frame;
     }
 }goods[150000];
-int next_goods = 0;
+int next_goods = 0; // 下一个货物的编号
 
 struct Robot
 {
@@ -52,6 +61,7 @@ struct Robot
         this -> goods_index = -1;
         this -> berth_index = -1;
     }
+
 }robots[robot_num];
 
 struct Berth
@@ -68,12 +78,24 @@ struct Berth
         this -> transport_time = transport_time;
         this -> loading_speed = loading_speed;
     }
+    int SumGoodsValue()
+    {
+        int sum = 0;
+        queue<int> temp = this->goods_queue;
+        for(int i = 0; i < temp.size(); i++)
+        {
+            sum += goods[temp.front()].val;
+            temp.pop();
+        }
+        return sum;
+    }
 }berths[berth_num];
+
 
 struct Boat
 {
     int pos; // 船的位置（港口id）（-1: 在虚拟点）
-    int status; // 船的状态（0：移动中，1：装货或运输，2:等待）
+    int status; // 船的状态（0：移动或运输中，1：装货或运输完成，2:泊位外等待）
     int goods_num; // 船上货物的数量
 
     Boat(){}
@@ -82,12 +104,123 @@ struct Boat
         this -> status = status;
         this -> goods_num = 0;
     }
+    int FindBestBerth(set <int> busy_berth) // 返回最佳泊位编号
+    {
+        int value_time = 0;
+        int berth_tmp = -1;
+        for(int i = 0; i < berth_num; i++)
+        {
+            if(berths[i].goods_queue.empty()) // 泊位上没有货物
+            {
+                return -1;
+            }
+            else if(busy_berth.find(i) == busy_berth.end()) // 泊位是空闲的
+            {
+                int load_time = berths[i].goods_queue.size() / berths[i].loading_speed;
+                int value_time_tmp = berths[i].SumGoodsValue() / load_time;
+                if(value_time_tmp > value_time)
+                {
+                    value_time = value_time_tmp;
+                    berth_tmp = i;
+                }
+            }
+        }
+        return berth_tmp;
+    }
+
+    void LoadGoods() // 装货
+    {
+        if(this->status == 1 && this->pos != -1) // 船只在装货或装货完成
+        {
+            if(this->goods_num < boat_capacity && berths[this->pos].goods_queue.size() > 0)
+            {
+                int add_num;
+                add_num = min(boat_capacity - this->goods_num, int(berths[this->pos].goods_queue.size()));
+                add_num = min(add_num, berths[this->pos].loading_speed);
+                for (int i = 0; i < add_num; i++) {
+                    this->goods_num += 1;
+                    berths[this->pos].goods_queue.pop();
+                }
+            }
+            else
+            {
+                return;
+            }
+        }
+    }
 }boat[boat_num];
 
-int money, boat_capacity, frame; // 金钱，船的容量，当前帧数
-int world[N][N]; // 地图
-int berth_path[berth_num][N][N] = {0}; // 泊位到每个点的最短路径(0: 上，1: 下，2: 左，3: 右)
-int berth_path_len[berth_num][N][N] = {0}; // 泊位到每个点的最短路径长度
+
+set <int> BusyBerth() // 返回泊位上有货物的泊位编号
+{
+    set <int> busy_berth;
+    for(int i = 0; i < boat_num; i++)
+    {
+        if(boat[i].pos != -1)
+        {
+            busy_berth.insert(boat[i].pos);
+        }
+    }
+    return busy_berth;
+}
+
+/* 船只调度函数 */
+void BoatDispatch()
+{
+    for(int i = 0; i < boat_num; i++)
+    {
+        if(boat[i].status == 0) // 船只在移动中
+        {
+            continue;
+        }
+        else if(boat[i].status == 1) // 船只在装货或运输完成
+        {
+            if(boat[i].pos == -1) // 船只在虚拟点
+            {
+                int best_berth = boat[i].FindBestBerth(BusyBerth());
+                if (best_berth != -1) {
+                    printf("ship %d %d\n", i, best_berth);
+                }
+                else
+                    return;
+            }
+            else // 船只在港口
+            {
+                if(boat[i].goods_num == boat_capacity) // 船只装满货物
+                {
+                    printf("go %d\n", i);
+                }
+                else
+                {
+                    boat[i].LoadGoods();
+                    int min_distance = 40001;
+                    for(int j = 0; j < robot_num; j++)
+                        if(robots[j].berth_index == boat[i].pos && robots[j].is_goods == 1) // 机器人锁定港口且带货
+                        {
+                            int distance = berth_path_len[robots[j].berth_index][robots[j].x][robots[j].y];
+                            if(distance < min_distance)
+                            {
+                                min_distance = distance;
+                            }
+                        }
+                    if(min_distance > berths[boat[i].pos].transport_time) // 没有机器人锁定港口且带货
+                    {
+                        printf("go %d\n", i);
+                    }
+                }
+            }
+        }
+        else if(boat[i].status == 2)// 船只在等待
+        {
+            int best_berth = boat[i].FindBestBerth(BusyBerth());
+            if (best_berth != -1) {
+                printf("ship %d %d\n", i, best_berth);
+            }
+            else
+                return;
+        }
+    }
+}
 
 const int dx[4] = {-1, 1, 0, 0}; // 每个方向x轴的偏移
 const int dy[4] = {0, 0, -1, 1}; // 每个方向y轴的偏移
@@ -239,7 +372,7 @@ int Input() {
     for (int i = 0; i < robot_num; i++) {
         int is_goods, x, y, status;
         scanf("%d%d%d%d", &is_goods, &x, &y, &status);
-        robots[i] = Robot(x, y, is_goods, status);
+        // TODO 更新机器人的状态
     }
     for (int i = 0; i < boat_num; i++) {
         int status, pos;
@@ -274,9 +407,6 @@ int CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index){
     return goods_value/(step_num + to_berth_len);
 }
 
-// 方向数组，表示0:上、1:下、3:左、4:右移动
-const int dx[] = {-1, 1, 0, 0}; //x方向
-const int dy[] = {0, 0, -1, 1}; //y方向
 
 // 检查坐标(x, y)是否在地图范围内并且不是障碍物
 bool isValid(int x, int y) {
