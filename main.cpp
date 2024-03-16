@@ -21,11 +21,11 @@ const int MAX_GOODS_NUM = 150000;
 
 const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
-const int REV_DIR[4] = {1, 0, 3, 2}; // 上下左右的反方向：下上右左
+const int REV_DIR[4] = {1, 0, 3, 2}; // 上下左右的反方向（用于BFS记录路径）：下上右左
 
 int Money, BoatCapacity, Frame;      // 金钱，船的容量，当前帧数
 int World[N][N];                     // 地图
-int BerthPath[BERTH_NUM][N][N];      // 泊位到每个点的最短路径(1: 上，2: 下，3: 左，4: 右)
+int BerthPath[BERTH_NUM][N][N];      // 泊位到每个点的最短路径(0: 上，1: 下，2: 左，3: 右)
 int BerthPathLenth[BERTH_NUM][N][N]; // 泊位到每个点的最短路径长度
 
 struct Goods
@@ -200,7 +200,7 @@ bool IsInGoods(int robot_index)
 }
 
 // 计算物品性价比
-int CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
+double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
 {
     int goods_value;          // 物品价值
     int goods_x, goods_y;     // 物品坐标
@@ -218,8 +218,8 @@ int CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
             to_berth_index = i;
         }
     }
-
-    return goods_value / (step_num + to_berth_len);
+    double cost_value = (double)goods_value / (step_num + to_berth_len);
+    return cost_value;
 }
 
 void BoatDispatch()
@@ -281,6 +281,7 @@ void BoatDispatch()
     }
 }
 
+// 方向随机排列
 vector<int> GetRandomDirection()
 {
     vector<int> random_dir = {0, 1, 2, 3};
@@ -515,7 +516,7 @@ vector<Road> ToGoodsBFS(int robot_index, int total_step)
             if (World[x][y] - 100 >= 0 && step <= AllGoods[World[x][y] - 100].refresh_frame)
             { // 找到物品
                 int berth_index;
-                int current_val = CalculateGoodsValue(World[x][y] - 100, step, berth_index); // 计算物品性价比
+                double current_val = CalculateGoodsValue(World[x][y] - 100, step, berth_index); // 计算物品性价比
                 if (best_goods.size() < 3)
                 { // 已找到小于三个
                     if (min_val > current_val)
@@ -706,14 +707,16 @@ void RobotDispatch()
 // 碰撞检测与规避
 void AvoidCollision()
 {
-    bool is_collision = true;
+    bool is_collision = true; // 本次是否有碰撞
+    int detect_num = 0;       // 检测的次数
     while (is_collision)
     {
+        detect_num++;
         is_collision = false;
         // 对每个机器人进行碰撞检测
         for (int ri = 0; ri < ROBOT_NUM; ri++)
         {
-            // 如果这个机器人没有被困死并且下一步会移动
+            // 如果这个机器人没有被困死并且下一步会移动（对于每个机器人只考虑主动碰撞，如果是被碰，会被其他机器人主动碰）
             if (!Robots[ri].is_dead && Robots[ri].dir >= 0)
             {
                 // 机器人i下一步的位置
@@ -740,13 +743,14 @@ void AvoidCollision()
                             // 对冲
                             if (Robots[rj].x == nx_ri && Robots[rj].y == ny_ri && (Robots[rj].dir / 2 == Robots[rj].dir / 2))
                             {
-                                
+                                is_collision = true;
+                                // 性价比低的机器人避让（优先让两边，实在不行往后面退，再不行就让性价比高的让）
                             }
                             // 抢位
                             if (nx_ri == nx_rj && ny_ri == ny_rj)
                             {
                                 is_collision = true;
-                                // 有货物的优先
+                                // 有货物的优先走，另一个停下
                                 if (Robots[ri].is_goods && !Robots[rj].is_goods)
                                 {
                                     Robots[rj].dir = -1;
@@ -776,7 +780,18 @@ void AvoidCollision()
                 }
             }
         }
+        // 检测100次就不检测了
+        if (detect_num >= 100)
+        {
+            break;
+        }
     }
+}
+
+// 打印机器人指令
+void PrintRobotsIns()
+{
+    // 
 }
 
 int main()
