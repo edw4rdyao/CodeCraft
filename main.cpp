@@ -9,6 +9,8 @@
 #include <set>
 #include <random>
 #include <cstring>
+#include <cstdlib> // 包含 rand() 和 srand()
+#include <ctime>   // 包含 time()
 #endif
 
 using namespace std;
@@ -48,15 +50,15 @@ int NextGoodsIndex = 0; // 下一个货物的编号
 
 struct Robot
 {
-    int x, y;        // 机器人的坐标
-    int is_goods;    // 机器是否携带货物 (0：没有，1：有)
-    int status;      // 机器人的状态（0：恢复，1：运行）
-    int dir;         // 机器人下一步运动的方向
-    int goods_index; // 机器人携带/想携带的货物编号
+    int x, y;           // 机器人的坐标
+    int is_goods;       // 机器是否携带货物 (0：没有，1：有)
+    int status;         // 机器人的状态（0：恢复，1：运行）
+    int dir;            // 机器人下一步运动的方向
+    int goods_index;    // 机器人携带/想携带的货物编号
     int goods_distance; // 机器人和货物的距离
-    int berth_index; // 机器人要去的泊位编号
-    int is_dead;     // 机器人是否被困死（0：没有，1：有）
-    int action;      // 0:get()拿货物， 1:pull()放物品
+    int berth_index;    // 机器人要去的泊位编号
+    int is_dead;        // 机器人是否被困死（0：没有，1：有）
+    int action;         // 0:get()拿货物， 1:pull()放物品, -1没有动作
 
     Robot() {}
     Robot(int x, int y)
@@ -116,7 +118,7 @@ struct Boat
     }
     int find_best_berth(set<int> busy_berth) // 返回最佳泊位编号
     {
-        int value_time = 0;
+        double value_time = 0;
         int berth_tmp = -1;
         for (int i = 0; i < BERTH_NUM; i++)
         {
@@ -127,7 +129,7 @@ struct Boat
             else if (busy_berth.find(i) == busy_berth.end()) // 泊位是空闲的
             {
                 int load_time = Berths[i].goods_queue.size() / Berths[i].loading_speed;
-                int value_time_tmp = Berths[i].sum_goods_value() / load_time;
+                double value_time_tmp = (double)Berths[i].sum_goods_value() / load_time;
                 if (value_time_tmp > value_time)
                 {
                     value_time = value_time_tmp;
@@ -412,7 +414,10 @@ void Init()
     char ok[100];
     scanf("%s", ok);
 
-    // TODO: 初始化船的信息
+    for (int i = 0; i < BOAT_NUM; i++)
+    {
+        Boats[i] = Boat(-1, 1);
+    }
 
     // BFS存储每个港口到地图每个点最短路径和距离
     ToBerthBFS();
@@ -471,6 +476,40 @@ void Input()
     scanf("%s", ok);
 }
 
+// 没拿物品的机器人之间比较要拿物品的性价比
+bool NoGoodsRobotsCompair(int ri, int rj)
+{
+    int goodsi = Robots[ri].goods_index;                                                                                                                         // 机器人i要拿的物品
+    int goodsj = Robots[rj].goods_index;                                                                                                                         // 机器人j要拿的物品
+    double ri_val = (double)AllGoods[goodsi].val / (Robots[ri].goods_distance + BerthPathLenth[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
+    double rj_val = (double)AllGoods[goodsj].val / (Robots[rj].goods_distance + BerthPathLenth[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
+    if (ri_val >= rj_val)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+// 都拿物品的机器人之间比较所拿物品的性价比
+bool GetGoodsRobotsCompair(int ri, int rj)
+{
+    int goodsi = Robots[ri].goods_index;                                                                               // 机器人i拿的物品
+    int goodsj = Robots[rj].goods_index;                                                                               // 机器人j拿的物品
+    double ri_val = (double)AllGoods[goodsi].val / BerthPathLenth[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y]; // 机器人i物品的性价比
+    double rj_val = (double)AllGoods[goodsj].val / BerthPathLenth[Robots[rj].berth_index][Robots[rj].x][Robots[rj].y]; // 机器人j物品的性价比
+    if (ri_val >= rj_val)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
 struct Road
 {
     int robot_index; // 路径对应的机器人id
@@ -487,7 +526,7 @@ struct Road
             return a.value < b.value;
         }
     };
-    Road(int robot_index, int goods_index, int goods_distance,int berth_index, int next_dir, double value)
+    Road(int robot_index, int goods_index, int goods_distance, int berth_index, int next_dir, double value)
     {
         this->robot_index = robot_index;
         this->goods_index = goods_index;
@@ -498,7 +537,22 @@ struct Road
     }
 };
 
-// 使用BFS算法找到最好的3个物品,返回物品index、最近港口和下一步方向
+// struct Road // 物品id、最近港口、机器人下一步方向
+// {
+//     int goods_index;
+//     int berth_index;
+//     int next_dir;
+
+//     Road() {}
+//     Road(int goods_index, int berth_index, int next_dir)
+//     {
+//         this->goods_index = goods_index;
+//         this->berth_index = berth_index;
+//         this->next_dir = next_dir;
+//     }
+// };
+
+// // 使用BFS算法找到最好的3个物品,返回物品index、最近港口和下一步方向
 // vector<Road> ToGoodsBFS(int robot_index, int total_step)
 // {
 //     int robot_x, robot_y; // 机器人的坐标
@@ -605,127 +659,7 @@ struct Road
 //     return best_goods;
 // }
 
-void RobotDsipatchGreedy()
-{
-    // 维护一个Road优先队列，每次找一条最短的路径匹配
-    priority_queue<Road, std::vector<Road>, Road::Comparator> roads_pq;
-    vector<int> robots_match(ROBOT_NUM, 0); // 机器人是否匹配
-    set<int> goods_match;                   // 被匹配的商品
-    int robot_match_num = 0;                // 被匹配的机器人数
-
-    for (int ri = 0; ri < ROBOT_NUM; ri++)
-    { // 对于每个机器人
-        if (Robots[ri].is_dead == 1 || Robots[ri].status == 0)
-        { // 如果机器人不能动（被困或者处于恢复状态），就不考虑
-            robot_match_num ++;
-            robots_match[ri] = 1;
-            Robots[ri].dir = -1;
-            continue;
-        }
-        if (Robots[ri].is_goods == 1)
-        { // 如果机器人拿着物品就直接找港口
-            if (IsInBerth(ri))
-            { // 如果到达港口，放下货物，继续找其他货物（?是否需要判断是不是自己要去的港口呢）
-                Robots[ri].action = 1;
-                Robots[ri].goods_index = -1;
-                Robots[ri].goods_distance = 40000;
-                Robots[ri].berth_index = -1;
-                Robots[ri].is_goods = 0;
-            }
-            else
-            { // 没到港口，沿着图走
-                robot_match_num ++;
-                robots_match[ri] = 1;
-                Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y];
-                continue;
-            }
-        }
-
-        // 以上情况之外，其他机器人都要BFS找货物
-        int robot_x = Robots[ri].x;
-        int robot_y = Robots[ri].y;
-        // 定义BFS最短路径及长度，坐标值以及队列
-        vector<vector<int>> goods_path(200, vector<int>(200, -1));
-        vector<vector<int>> goods_path_length(200, vector<int>(200, -1));
-        queue<pair<int, int>> q;
-
-        q.push({robot_x, robot_y});
-        goods_path[robot_x][robot_y] = 0;
-        while (!q.empty())
-        {
-            // 从队列中取出一个点
-            pair<int, int> cur_pos = q.front();
-            q.pop();
-
-            int goods_id = IsOnGoods(cur_pos.first, cur_pos.second);
-            int cur_path_length = goods_path_length[cur_pos.first][cur_pos.second];
-            if (goods_id >= 0 && cur_path_length < (1000 - (Frame - AllGoods[goods_id].refresh_frame)))
-            { // 如果现在的位置有物品，并且机器人到物品处时商品未消失, 计算最近港口和性价比，并将路径加入
-                int to_berth_index = -1;
-                double value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index);
-                roads_pq.push(Road(ri, goods_id, cur_path_length, to_berth_index, goods_path[cur_pos.first][cur_pos.second], value));
-            }
-            // 限制搜索的范围
-            if (cur_path_length > 80)
-            {
-                break;
-            }
-            // 四个方向随机遍历
-            vector<int> random_dir = GetRandomDirection();
-            for (int i = 0; i < 4; i++)
-            { // 遍历到下一个点
-                int dir = random_dir[i];
-                int nx = cur_pos.first + DX[dir];
-                int ny = cur_pos.second + DY[dir];
-                if (IsValid(nx, ny) && goods_path_length[nx][ny] < 0)
-                { // 判断该点是否可以到达(没有越界&&为空地或者泊位&&之前没有到达过)
-                    // 路径长度+1
-                    goods_path_length[nx][ny] = cur_path_length + 1;
-                    if (cur_path_length == 0)
-                    {// 记录路径的方向(只记录路径第一步的方向)
-                        goods_path[nx][ny] = dir;
-                    }
-                    else
-                    {
-                        goods_path[nx][ny] = goods_path[cur_pos.first][cur_pos.second];
-                    }
-                    // 将该点加入队列
-                    q.push({nx, ny});
-                }
-            }
-        }
-    }
-    // 开始机器人和物品的匹配
-    while (!roads_pq.empty())
-    { // 价值最大的路径
-        if(robot_match_num >= ROBOT_NUM)
-        {
-            break;
-        }
-        Road road = roads_pq.top();
-        int ri = road.robot_index;
-        if(robots_match[ri] == 0 && goods_match.find(road.goods_index) == goods_match.end())
-        { // 如果该机器人没被匹配并且该商品没被匹配，则匹配该机器人和商品
-            Robots[ri].goods_index = road.goods_index;
-            Robots[ri].berth_index = road.berth_index;
-            Robots[ri].dir = road.next_dir;
-            Robots[ri].goods_distance = road.goods_distance;
-            // 如果该机器人在自己想要拿的物品上，就拿起并且朝港口走
-            int goods_id = IsOnGoods(Robots[ri].x, Robots[ri].y);
-            if(goods_id == Robots[ri].goods_index)
-            {
-                Robots[ri].action = 0;
-                Robots[ri].is_goods = 1;
-                Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y];
-            }
-            robot_match_num ++;
-            robots_match[ri] = 1;
-        }
-        roads_pq.pop();
-    }
-}
-
-// 每个机器人本帧动作
+// // 每个机器人本帧动作
 // void RobotDispatch()
 // {
 //     vector<vector<Road>> roads; // 每个机器人各自最好的几个商品和对应的下一步
@@ -738,6 +672,7 @@ void RobotDsipatchGreedy()
 //             Robots[i].dir = -1;
 //             continue;
 //         }
+
 //         if (Robots[i].is_goods == 1)
 //         { // 若拿着物品
 //             roads.push_back(current_road);
@@ -752,9 +687,11 @@ void RobotDsipatchGreedy()
 //             }
 //             continue;
 //         }
+
 //         current_road = ToGoodsBFS(i, 80);
 //         roads.push_back(current_road); // 最多找80步
 //     }
+
 //     for (int i = 0; i < ROBOT_NUM; i++)
 //     {
 //         if (roads[i].empty())
@@ -766,7 +703,7 @@ void RobotDsipatchGreedy()
 //             continue;
 //         }
 
-//         if (IsOnGoods(i))
+//         if (IsInGoods(i))
 //         {                                             // 在物品上
 //             AllGoods[Robots[i].goods_index].lock = 0; // 物品解锁
 //             int j = 0;
@@ -801,6 +738,7 @@ void RobotDsipatchGreedy()
 //                         Robots[i].goods_index = goods_id;     // 机器人要拿的物品编号
 //                         AllGoods[goods_id].lock = 1;          // 物品上锁
 //                         Robots[i].dir = roads[i][k].next_dir; // 机器人方向
+//                         Robots[i].berth_index = roads[i][k].berth_index; //物品最近港口
 //                         break;
 //                     }
 //                 }
@@ -826,6 +764,7 @@ void RobotDsipatchGreedy()
 //                     Robots[i].goods_index = goods_id;     // 机器人要拿的物品编号
 //                     AllGoods[goods_id].lock = 1;          // 物品上锁
 //                     Robots[i].dir = roads[i][j].next_dir; // 机器人方向
+//                     Robots[i].berth_index = roads[i][j].berth_index; //物品最近港口
 //                     break;
 //                 }
 //             }
@@ -837,6 +776,199 @@ void RobotDsipatchGreedy()
 //         }
 //     }
 // }
+
+void RobotDsipatchGreedy()
+{
+    // 维护一个Road优先队列，每次找一条最短的路径匹配
+    priority_queue<Road, std::vector<Road>, Road::Comparator> roads_pq;
+    vector<int> robots_match(ROBOT_NUM, 0); // 机器人是否匹配
+    set<int> goods_match;                   // 被匹配的商品
+    int robot_match_num = 0;                // 被匹配的机器人数
+
+    for (int ri = 0; ri < ROBOT_NUM; ri++)
+    { // 对于每个机器人
+        if (Robots[ri].is_dead == 1 || Robots[ri].status == 0)
+        { // 如果机器人不能动（被困或者处于恢复状态），就不考虑
+            robot_match_num++;
+            robots_match[ri] = 1;
+            Robots[ri].dir = -1;
+            continue;
+        }
+        if (Robots[ri].is_goods == 1)
+        { // 如果机器人拿着物品就直接找港口
+            if (IsInBerth(ri))
+            { // 如果到达港口，放下货物，继续找其他货物（?是否需要判断是不是自己要去的港口呢）
+                Robots[ri].action = 1;
+                Robots[ri].goods_index = -1;
+                Robots[ri].goods_distance = 40000;
+                Robots[ri].berth_index = -1;
+                Robots[ri].is_goods = 0;
+            }
+            else
+            { // 没到港口，沿着图走
+                robot_match_num++;
+                robots_match[ri] = 1;
+                Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y];
+                continue;
+            }
+        }
+
+        // 以上情况之外，其他机器人都要BFS找货物
+        int robot_x = Robots[ri].x;
+        int robot_y = Robots[ri].y;
+        // 定义BFS最短路径及长度，坐标值以及队列
+        vector<vector<int>> goods_path(200, vector<int>(200, -1));
+        vector<vector<int>> goods_path_length(200, vector<int>(200, -1));
+        queue<pair<int, int>> q;
+
+        q.push({robot_x, robot_y});
+        goods_path_length[robot_x][robot_y] = 0;
+        while (!q.empty())
+        {
+            // 从队列中取出一个点
+            pair<int, int> cur_pos = q.front();
+            q.pop();
+
+            int goods_id = IsOnGoods(cur_pos.first, cur_pos.second);
+            int cur_path_length = goods_path_length[cur_pos.first][cur_pos.second];
+            if (goods_id >= 0 && cur_path_length < (1000 - (Frame - AllGoods[goods_id].refresh_frame)))
+            { // 如果现在的位置有物品，并且机器人到物品处时商品未消失, 计算最近港口和性价比，并将路径加入
+                int to_berth_index = -1;
+                double value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index);
+                roads_pq.push(Road(ri, goods_id, cur_path_length, to_berth_index, goods_path[cur_pos.first][cur_pos.second], value));
+            }
+            // 限制搜索的范围
+            if (cur_path_length > 80)
+            {
+                break;
+            }
+            // 四个方向随机遍历
+            vector<int> random_dir = GetRandomDirection();
+            for (int i = 0; i < 4; i++)
+            { // 遍历到下一个点
+                int dir = random_dir[i];
+                int nx = cur_pos.first + DX[dir];
+                int ny = cur_pos.second + DY[dir];
+                if (IsValid(nx, ny) && goods_path_length[nx][ny] < 0)
+                { // 判断该点是否可以到达(没有越界&&为空地或者泊位&&之前没有到达过)
+                    // 路径长度+1
+                    goods_path_length[nx][ny] = cur_path_length + 1;
+                    if (cur_path_length == 0)
+                    { // 记录路径的方向(只记录路径第一步的方向)
+                        goods_path[nx][ny] = dir;
+                    }
+                    else
+                    {
+                        goods_path[nx][ny] = goods_path[cur_pos.first][cur_pos.second];
+                    }
+                    // 将该点加入队列
+                    q.push({nx, ny});
+                }
+            }
+        }
+    }
+    // 开始机器人和物品的匹配
+    while (!roads_pq.empty())
+    { // 价值最大的路径
+        if (robot_match_num >= ROBOT_NUM)
+        {
+            break;
+        }
+        Road road = roads_pq.top();
+        int ri = road.robot_index;
+        if (robots_match[ri] == 0 && goods_match.find(road.goods_index) == goods_match.end())
+        { // 如果该机器人没被匹配并且该商品没被匹配，则匹配该机器人和商品
+            Robots[ri].goods_index = road.goods_index;
+            Robots[ri].berth_index = road.berth_index;
+            Robots[ri].dir = road.next_dir;
+            Robots[ri].goods_distance = road.goods_distance;
+            // 如果该机器人在自己想要拿的物品上，就拿起并且朝港口走
+            int goods_id = IsOnGoods(Robots[ri].x, Robots[ri].y);
+            if (goods_id == Robots[ri].goods_index)
+            {
+                Robots[ri].action = 0;
+                Robots[ri].is_goods = 1;
+                Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y];
+            }
+            robot_match_num++;
+            robots_match[ri] = 1;
+        }
+        roads_pq.pop();
+    }
+}
+
+// 对冲让位函数
+bool CrashAvoid(int ri)
+{
+    // ri优先让两边
+    int new_dir = Robots[ri].dir; // 新方向
+
+    srand(time(nullptr)); // 使用当前时间作为随机数生成器的种子
+
+    if (new_dir == 0 || new_dir == 1)
+    {
+        // 当前方向是上或下，所以选择左或右
+        int nx1 = Robots[ri].x + DX[2]; // 向左的坐标
+        int ny1 = Robots[ri].y + DY[2];
+        int nx2 = Robots[ri].x + DX[3]; // 向右的坐标
+        int ny2 = Robots[ri].y + DY[3];
+        int nx3 = Robots[ri].x + DX[(new_dir + 1) % 2]; // 向后的坐标
+        int ny3 = Robots[ri].y + DY[(new_dir + 1) % 2];
+        if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0)
+        {                             // 两个方向都可行,随机选一个
+            new_dir = 2 + rand() % 2; // 生成 2 或 3
+        }
+        else if (World[nx1][ny1] >= 0)
+        {
+            new_dir = 2; // 左
+        }
+        else if (World[nx2][ny2] >= 0)
+        {
+            new_dir = 3; // 右
+        }
+        else if (World[nx3][ny3] >= 0)
+        {
+            new_dir = (new_dir + 1) % 2; // 后退
+        }
+        else
+        {
+            return false;
+        }
+    }
+    else
+    {
+        // 当前方向是左或右，所以选择上或下
+        int nx1 = Robots[ri].x + DX[0]; // 向上的坐标
+        int ny1 = Robots[ri].y + DY[0];
+        int nx2 = Robots[ri].x + DX[1]; // 向下的坐标
+        int ny2 = Robots[ri].y + DY[1];
+        int nx3 = Robots[ri].x + DX[5 - new_dir]; // 向后的坐标
+        int ny3 = Robots[ri].y + DY[5 - new_dir];
+        if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0)
+        {                         // 两个方向都可行,随机选一个
+            new_dir = rand() % 2; // 生成 0 或 1
+        }
+        else if (World[nx1][ny1] >= 0)
+        {
+            new_dir = 0; // 上
+        }
+        else if (World[nx2][ny2] >= 0)
+        {
+            new_dir = 1; // 下
+        }
+        else if (World[nx3][ny3] >= 0)
+        { // 后退
+            new_dir = 5 - new_dir;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    Robots[ri].dir = new_dir; // 改变ri方向
+    return true;
+}
 
 // 碰撞检测与规避
 void AvoidCollision()
@@ -879,6 +1011,55 @@ void AvoidCollision()
                             {
                                 is_collision = true;
                                 // 性价比低的机器人避让（优先让两边，实在不行往后面退，再不行就让性价比高的让）
+                                if (Robots[ri].is_goods && Robots[rj].is_goods)
+                                { // 都拿物品
+                                    if (GetGoodsRobotsCompair(ri, rj))
+                                    { // 我拿的好
+                                        if (!CrashAvoid(rj))
+                                        {
+                                            CrashAvoid(ri);
+                                        }
+                                    }
+                                    else
+                                    { // 别人拿的好
+                                        if (!CrashAvoid(ri))
+                                        {
+                                            CrashAvoid(rj);
+                                        }
+                                    }
+                                }
+                                else if (!Robots[ri].is_goods && !Robots[rj].is_goods)
+                                { // 都没拿物品
+                                    if (NoGoodsRobotsCompair(ri, rj))
+                                    { // 我拿的好
+                                        if (!CrashAvoid(rj))
+                                        {
+                                            CrashAvoid(ri);
+                                        }
+                                    }
+                                    else
+                                    { // 别人拿的好
+                                        if (!CrashAvoid(ri))
+                                        {
+                                            CrashAvoid(rj);
+                                        }
+                                    }
+                                }
+                                else if (!Robots[ri].is_goods && Robots[rj].is_goods)
+                                { // 我没拿别人拿了，我让，ri优先让两边
+                                    if (!CrashAvoid(ri))
+                                    {
+                                        CrashAvoid(rj);
+                                    }
+                                }
+                                else
+                                { // 别人没拿我拿了，别人让
+                                    if (!CrashAvoid(rj))
+                                    {
+                                        CrashAvoid(ri);
+                                    }
+                                }
+                                break;
                             }
                             // 抢位
                             if (nx_ri == nx_rj && ny_ri == ny_rj)
@@ -896,11 +1077,25 @@ void AvoidCollision()
                                 // 都有货物或者都没有货物则比较性价比
                                 else if (Robots[ri].is_goods && Robots[rj].is_goods)
                                 {
-                                    //
+                                    if (GetGoodsRobotsCompair(ri, rj))
+                                    { // 我拿的好，别人停
+                                        Robots[rj].dir = -1;
+                                    }
+                                    else
+                                    { // 别人拿的好，我停
+                                        Robots[ri].dir = -1;
+                                    }
                                 }
                                 else
                                 {
-                                    //
+                                    if (NoGoodsRobotsCompair(ri, rj))
+                                    { // 我要拿的好，别人停
+                                        Robots[rj].dir = -1;
+                                    }
+                                    else
+                                    { // 别人要拿的好，我停
+                                        Robots[ri].dir = -1;
+                                    }
                                 }
                                 break;
                             }
@@ -925,7 +1120,37 @@ void AvoidCollision()
 // 打印机器人指令
 void PrintRobotsIns()
 {
-    //
+    // move:0:右，1:左，2:上，3:下
+    for (int i = 0; i < ROBOT_NUM; i++)
+    {
+        if (Robots[i].action >= 0)
+        {
+            if (Robots[i].action == 0)
+            { // get
+                printf("get %d\n", i);
+            }
+            else if (Robots[i].action == 1)
+            { // pull
+                printf("pull %d\n", i);
+            }
+        }
+        if (Robots[i].dir == 0)
+        { // 上
+            printf("move %d 2\n", i);
+        }
+        else if (Robots[i].dir == 1)
+        { // 下
+            printf("move %d 3\n", i);
+        }
+        else if (Robots[i].dir == 2)
+        { // 左
+            printf("move %d 1\n", i);
+        }
+        else if (Robots[i].dir == 3)
+        { // 右
+            printf("move %d 0\n", i);
+        }
+    }
 }
 
 int main()
@@ -934,9 +1159,10 @@ int main()
     for (int frame = 1; frame <= 15000; frame++)
     {
         Input();
-        // RobotDispatch();
-        for (int i = 0; i < ROBOT_NUM; i++)
-            printf("move %d %d\n", i, rand() % 4);
+        RobotDsipatchGreedy();
+        AvoidCollision();
+        PrintRobotsIns();
+        BoatDispatch();
         puts("OK");
         fflush(stdout);
     }
