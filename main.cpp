@@ -21,6 +21,9 @@ const int BOAT_NUM = 5;
 const int N = 200;
 const int MAX_GOODS_NUM = 150000;
 
+const int MAX_ROAD_NUM = 5;
+const int MAX_ROAD_LEN = 50;
+
 const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
 const int REV_DIR[4] = {1, 0, 3, 2}; // 上下左右的反方向（用于BFS记录路径）：下上右左
@@ -820,9 +823,10 @@ void RobotDsipatchGreedy()
         vector<vector<int>> goods_path(200, vector<int>(200, -1));
         vector<vector<int>> goods_path_length(200, vector<int>(200, -1));
         queue<pair<int, int>> q;
+        int ri_road_num = 0;
 
         q.push({robot_x, robot_y});
-        goods_path[robot_x][robot_y] = 0;
+        goods_path_length[robot_x][robot_y] = 0;
         while (!q.empty())
         {
             // 从队列中取出一个点
@@ -831,14 +835,22 @@ void RobotDsipatchGreedy()
 
             int goods_id = IsOnGoods(cur_pos.first, cur_pos.second);
             int cur_path_length = goods_path_length[cur_pos.first][cur_pos.second];
-            if (goods_id >= 0 && cur_path_length < (1000 - (Frame - AllGoods[goods_id].refresh_frame)))
-            { // 如果现在的位置有物品，并且机器人到物品处时商品未消失, 计算最近港口和性价比，并将路径加入
-                int to_berth_index = -1;
-                double value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index);
-                roads_pq.push(Road(ri, goods_id, cur_path_length, to_berth_index, goods_path[cur_pos.first][cur_pos.second], value));
+            if (goods_id >= 0)
+            { // 如果现在的位置有物品
+                if (Frame - AllGoods[goods_id].refresh_frame >= 1000)
+                { // 该物品已消失
+                    World[cur_pos.first][cur_pos.second] = 0;
+                }
+                else if (cur_path_length < (1000 - (Frame - AllGoods[goods_id].refresh_frame)))
+                { // 机器人到物品处时商品未消失, 计算最近港口和性价比，并将路径加入
+                    int to_berth_index = -1;
+                    double value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index);
+                    roads_pq.push(Road(ri, goods_id, cur_path_length, to_berth_index, goods_path[cur_pos.first][cur_pos.second], value));
+                    ri_road_num ++;
+                }
             }
-            // 限制搜索的范围
-            if (cur_path_length > 80)
+            // 限制搜索的范围以控制时间
+            if (ri_road_num > MAX_ROAD_NUM || cur_path_length > MAX_ROAD_LEN)
             {
                 break;
             }
@@ -889,9 +901,11 @@ void RobotDsipatchGreedy()
                 Robots[ri].action = 0;
                 Robots[ri].is_goods = 1;
                 Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y];
+                World[Robots[ri].x][Robots[ri].y] = 0;
             }
             robot_match_num++;
             robots_match[ri] = 1;
+            goods_match.insert(road.goods_index);
         }
         roads_pq.pop();
     }
@@ -1002,7 +1016,7 @@ void AvoidCollision()
                             break;
                         }
                         // 碰上移动的机器人j
-                        if (Robots[rj].dir > 0)
+                        if (Robots[rj].dir >= 0)
                         {
                             int nx_rj = Robots[rj].x + DX[Robots[rj].dir];
                             int ny_rj = Robots[rj].y + DY[Robots[rj].dir];
