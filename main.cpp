@@ -9,6 +9,8 @@
 #include <set>
 #include <random>
 #include <cstring>
+#include <cstdlib>  // 包含 rand() 和 srand()
+#include <ctime>    // 包含 time()
 #endif
 
 using namespace std;
@@ -56,6 +58,7 @@ struct Robot
     int berth_index; // 机器人要去的泊位编号
     int is_dead;     // 机器人是否被困死（0：没有，1：有）
     int action;      // 0:get()拿货物， 1:pull()放物品
+    int goods_distance; //到要拿物品的距离
 
     Robot() {}
     Robot(int x, int y)
@@ -67,6 +70,7 @@ struct Robot
         this->dir = -1;
         this->goods_index = -1;
         this->berth_index = -1;
+        this->goods_distance = 40000;
     }
 
 } Robots[ROBOT_NUM];
@@ -667,6 +671,7 @@ void RobotDispatch()
                         Robots[i].goods_index = goods_id;     // 机器人要拿的物品编号
                         AllGoods[goods_id].lock = 1;          // 物品上锁
                         Robots[i].dir = roads[i][k].next_dir; // 机器人方向
+                        Robots[i].berth_index = roads[i][k].berth_index; //物品最近港口
                         break;
                     }
                 }
@@ -692,6 +697,7 @@ void RobotDispatch()
                     Robots[i].goods_index = goods_id;     // 机器人要拿的物品编号
                     AllGoods[goods_id].lock = 1;          // 物品上锁
                     Robots[i].dir = roads[i][j].next_dir; // 机器人方向
+                    Robots[i].berth_index = roads[i][k].berth_index; //物品最近港口
                     break;
                 }
             }
@@ -701,6 +707,34 @@ void RobotDispatch()
                 Robots[i].dir = -1;                       // 罚站
             }
         }
+    }
+}
+
+//没拿物品的机器人之间比较要拿物品的性价比
+bool NoGoodsRobotsCompair(int roboti_index, int robotj_index){
+    int goodsi = Robots[roboti_index].goods_index; //机器人i要拿的物品
+    int goodsj = Robots[robotj_index].goods_index; //机器人j要拿的物品
+    double ri_val = AllGoods[goodsi].val / (Robots[roboti_index].goods_distance+BerthPathLenth[Robots[roboti_index].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); //机器人i要拿物品的性价比
+    double rj_val = AllGoods[goodsj].val / (Robots[robotj_index].goods_distance+BerthPathLenth[Robots[robotj_index].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); //机器人j要拿物品的性价比
+    if (ri_val >= rj_val){
+        return true;
+    }
+    else{
+        return false;
+    }
+}
+
+//都拿物品的机器人之间比较所拿物品的性价比
+bool GetGoodsRobotsCompair(int roboti_index, int robotj_index){
+    int goodsi = Robots[roboti_index].goods_index; //机器人i拿的物品
+    int goodsj = Robots[robotj_index].goods_index; //机器人j拿的物品
+    double ri_val = AllGoods[goodsi].val / BerthPathLenth[Robots[roboti_index].berth_index][Robots[roboti_index].x][Robots[roboti_index].y]; //机器人i物品的性价比
+    double rj_val = AllGoods[goodsj].val / BerthPathLenth[Robots[robotj_index].berth_index][Robots[robotj_index].x][Robots[robotj_index].y]; //机器人j物品的性价比
+    if (ri_val >= rj_val){
+        return true;
+    }
+    else{
+        return false;
     }
 }
 
@@ -745,6 +779,294 @@ void AvoidCollision()
                             {
                                 is_collision = true;
                                 // 性价比低的机器人避让（优先让两边，实在不行往后面退，再不行就让性价比高的让）
+                                if (Robots[ri].is_goods && Robots[rj].is_goods){  //都拿物品
+                                    if (GetGoodsRobotsCompair(ri,rj)){ //我拿的好
+                                        // rj优先让两边
+                                        int new_dir = Robots[rj].dir; //新方向
+
+                                        srand(time(nullptr)); // 使用当前时间作为随机数生成器的种子
+
+                                        if (new_dir == 0 || new_dir == 1) {
+                                            // 当前方向是上或下，所以选择左或右
+                                            int nx1 = Robots[rj].x + DX[2]; //向左的坐标
+                                            int ny1 = Robots[rj].y + DY[2];
+                                            int nx2 = Robots[rj].x + DX[3]; //向右的坐标
+                                            int ny2 = Robots[rj].y + DY[3];
+                                            if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0){ //两个方向都可行,随机选一个
+                                                new_dir = 2 + rand() % 2; // 生成 2 或 3
+                                            }
+                                            else if (World[nx1][ny1] >= 0){
+                                                new_dir = 2; //左
+                                            }
+                                            else if (World[nx2][ny2] >= 0){
+                                                new_dir = 3; //右
+                                            }
+                                            else{ //后退
+                                                new_dir = (new_dir + 2) % 4;
+                                            }
+                                        } 
+                                        else {
+                                            // 当前方向是左或右，所以选择上或下
+                                            int nx1 = Robots[rj].x + DX[0]; //向上的坐标
+                                            int ny1 = Robots[rj].y + DY[0];
+                                            int nx2 = Robots[rj].x + DX[1]; //向下的坐标
+                                            int ny2 = Robots[rj].y + DY[1];
+                                            if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0){ //两个方向都可行,随机选一个
+                                                new_dir = rand() % 2; // 生成 0 或 1
+                                            }
+                                            else if (World[nx1][ny1] >= 0){
+                                                new_dir = 0; //上
+                                            }
+                                            else if (World[nx2][ny2] >= 0){
+                                                new_dir = 1; //下
+                                            }
+                                            else{ //后退
+                                                new_dir = (new_dir + 2) % 4;
+                                            }
+                                        }
+
+                                        Robots[rj].dir = new_dir; //改变rj方向
+                                    }
+                                    else{ //别人拿的好
+                                        // ri优先让两边
+                                        int new_dir = Robots[ri].dir; //新方向
+
+                                        srand(time(nullptr)); // 使用当前时间作为随机数生成器的种子
+
+                                        if (new_dir == 0 || new_dir == 1) {
+                                            // 当前方向是上或下，所以选择左或右
+                                            int nx1 = Robots[ri].x + DX[2]; //向左的坐标
+                                            int ny1 = Robots[ri].y + DY[2];
+                                            int nx2 = Robots[ri].x + DX[3]; //向右的坐标
+                                            int ny2 = Robots[ri].y + DY[3];
+                                            if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0){ //两个方向都可行,随机选一个
+                                                new_dir = 2 + rand() % 2; // 生成 2 或 3
+                                            }
+                                            else if (World[nx1][ny1] >= 0){
+                                                new_dir = 2; //左
+                                            }
+                                            else if (World[nx2][ny2] >= 0){
+                                                new_dir = 3; //右
+                                            }
+                                            else{ //后退
+                                                new_dir = (new_dir + 2) % 4;
+                                            }
+                                        } 
+                                        else {
+                                            // 当前方向是左或右，所以选择上或下
+                                            int nx1 = Robots[ri].x + DX[0]; //向上的坐标
+                                            int ny1 = Robots[ri].y + DY[0];
+                                            int nx2 = Robots[ri].x + DX[1]; //向下的坐标
+                                            int ny2 = Robots[ri].y + DY[1];
+                                            if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0){ //两个方向都可行,随机选一个
+                                                new_dir = rand() % 2; // 生成 0 或 1
+                                            }
+                                            else if (World[nx1][ny1] >= 0){
+                                                new_dir = 0; //上
+                                            }
+                                            else if (World[nx2][ny2] >= 0){
+                                                new_dir = 1; //下
+                                            }
+                                            else{ //后退
+                                                new_dir = (new_dir + 2) % 4;
+                                            }
+                                        }
+
+                                        Robots[ri].dir = new_dir; //改变ri方向
+                                    }
+                                }
+                                else if (!Robots[ri].is_goods && !Robots[rj].is_goods){ //都没拿物品
+                                    if (NoGoodsRobotsCompair(ri,rj)){ //我拿的好
+                                        // rj优先让两边
+                                        int new_dir = Robots[rj].dir; //新方向
+
+                                        srand(time(nullptr)); // 使用当前时间作为随机数生成器的种子
+
+                                        if (new_dir == 0 || new_dir == 1) {
+                                            // 当前方向是上或下，所以选择左或右
+                                            int nx1 = Robots[rj].x + DX[2]; //向左的坐标
+                                            int ny1 = Robots[rj].y + DY[2];
+                                            int nx2 = Robots[rj].x + DX[3]; //向右的坐标
+                                            int ny2 = Robots[rj].y + DY[3];
+                                            if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0){ //两个方向都可行,随机选一个
+                                                new_dir = 2 + rand() % 2; // 生成 2 或 3
+                                            }
+                                            else if (World[nx1][ny1] >= 0){
+                                                new_dir = 2; //左
+                                            }
+                                            else if (World[nx2][ny2] >= 0){
+                                                new_dir = 3; //右
+                                            }
+                                            else{ //后退
+                                                new_dir = (new_dir + 2) % 4;
+                                            }
+                                        } 
+                                        else {
+                                            // 当前方向是左或右，所以选择上或下
+                                            int nx1 = Robots[rj].x + DX[0]; //向上的坐标
+                                            int ny1 = Robots[rj].y + DY[0];
+                                            int nx2 = Robots[rj].x + DX[1]; //向下的坐标
+                                            int ny2 = Robots[rj].y + DY[1];
+                                            if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0){ //两个方向都可行,随机选一个
+                                                new_dir = rand() % 2; // 生成 0 或 1
+                                            }
+                                            else if (World[nx1][ny1] >= 0){
+                                                new_dir = 0; //上
+                                            }
+                                            else if (World[nx2][ny2] >= 0){
+                                                new_dir = 1; //下
+                                            }
+                                            else{ //后退
+                                                new_dir = (new_dir + 2) % 4;
+                                            }
+                                        }
+
+                                        Robots[rj].dir = new_dir; //改变rj方向
+                                    }
+                                    else{ //别人拿的好
+                                        // ri优先让两边
+                                        int new_dir = Robots[ri].dir; //新方向
+
+                                        srand(time(nullptr)); // 使用当前时间作为随机数生成器的种子
+
+                                        if (new_dir == 0 || new_dir == 1) {
+                                            // 当前方向是上或下，所以选择左或右
+                                            int nx1 = Robots[ri].x + DX[2]; //向左的坐标
+                                            int ny1 = Robots[ri].y + DY[2];
+                                            int nx2 = Robots[ri].x + DX[3]; //向右的坐标
+                                            int ny2 = Robots[ri].y + DY[3];
+                                            if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0){ //两个方向都可行,随机选一个
+                                                new_dir = 2 + rand() % 2; // 生成 2 或 3
+                                            }
+                                            else if (World[nx1][ny1] >= 0){
+                                                new_dir = 2; //左
+                                            }
+                                            else if (World[nx2][ny2] >= 0){
+                                                new_dir = 3; //右
+                                            }
+                                            else{ //后退
+                                                new_dir = (new_dir + 2) % 4;
+                                            }
+                                        } 
+                                        else {
+                                            // 当前方向是左或右，所以选择上或下
+                                            int nx1 = Robots[ri].x + DX[0]; //向上的坐标
+                                            int ny1 = Robots[ri].y + DY[0];
+                                            int nx2 = Robots[ri].x + DX[1]; //向下的坐标
+                                            int ny2 = Robots[ri].y + DY[1];
+                                            if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0){ //两个方向都可行,随机选一个
+                                                new_dir = rand() % 2; // 生成 0 或 1
+                                            }
+                                            else if (World[nx1][ny1] >= 0){
+                                                new_dir = 0; //上
+                                            }
+                                            else if (World[nx2][ny2] >= 0){
+                                                new_dir = 1; //下
+                                            }
+                                            else{ //后退
+                                                new_dir = (new_dir + 2) % 4;
+                                            }
+                                        }
+
+                                        Robots[ri].dir = new_dir; //改变ri方向
+                                    }
+                                } 
+                                else if (!Robots[ri].is_goods && Robots[rj].is_goods){ //我没拿别人拿了，我让
+                                    // ri优先让两边
+                                    int new_dir = Robots[ri].dir; //新方向
+
+                                    srand(time(nullptr)); // 使用当前时间作为随机数生成器的种子
+
+                                    if (new_dir == 0 || new_dir == 1) {
+                                        // 当前方向是上或下，所以选择左或右
+                                        int nx1 = Robots[ri].x + DX[2]; //向左的坐标
+                                        int ny1 = Robots[ri].y + DY[2];
+                                        int nx2 = Robots[ri].x + DX[3]; //向右的坐标
+                                        int ny2 = Robots[ri].y + DY[3];
+                                        if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0){ //两个方向都可行,随机选一个
+                                            new_dir = 2 + rand() % 2; // 生成 2 或 3
+                                        }
+                                        else if (World[nx1][ny1] >= 0){
+                                            new_dir = 2; //左
+                                        }
+                                        else if (World[nx2][ny2] >= 0){
+                                            new_dir = 3; //右
+                                        }
+                                        else{ //后退
+                                            new_dir = (new_dir + 2) % 4;
+                                        }
+                                    } 
+                                    else {
+                                        // 当前方向是左或右，所以选择上或下
+                                        int nx1 = Robots[ri].x + DX[0]; //向上的坐标
+                                        int ny1 = Robots[ri].y + DY[0];
+                                        int nx2 = Robots[ri].x + DX[1]; //向下的坐标
+                                        int ny2 = Robots[ri].y + DY[1];
+                                        if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0){ //两个方向都可行,随机选一个
+                                            new_dir = rand() % 2; // 生成 0 或 1
+                                        }
+                                        else if (World[nx1][ny1] >= 0){
+                                            new_dir = 0; //上
+                                        }
+                                        else if (World[nx2][ny2] >= 0){
+                                            new_dir = 1; //下
+                                        }
+                                        else{ //后退
+                                            new_dir = (new_dir + 2) % 4;
+                                        }
+                                    }
+
+                                    Robots[ri].dir = new_dir; //改变ri方向
+                                }
+                                else{ //别人没拿我拿了，别人让
+                                    // rj优先让两边
+                                    int new_dir = Robots[rj].dir; //新方向
+
+                                    srand(time(nullptr)); // 使用当前时间作为随机数生成器的种子
+
+                                    if (new_dir == 0 || new_dir == 1) {
+                                        // 当前方向是上或下，所以选择左或右
+                                        int nx1 = Robots[rj].x + DX[2]; //向左的坐标
+                                        int ny1 = Robots[rj].y + DY[2];
+                                        int nx2 = Robots[rj].x + DX[3]; //向右的坐标
+                                        int ny2 = Robots[rj].y + DY[3];
+                                        if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0){ //两个方向都可行,随机选一个
+                                            new_dir = 2 + rand() % 2; // 生成 2 或 3
+                                        }
+                                        else if (World[nx1][ny1] >= 0){
+                                            new_dir = 2; //左
+                                        }
+                                        else if (World[nx2][ny2] >= 0){
+                                            new_dir = 3; //右
+                                        }
+                                        else{ //后退
+                                            new_dir = (new_dir + 2) % 4;
+                                        }
+                                    } 
+                                    else {
+                                        // 当前方向是左或右，所以选择上或下
+                                        int nx1 = Robots[rj].x + DX[0]; //向上的坐标
+                                        int ny1 = Robots[rj].y + DY[0];
+                                        int nx2 = Robots[rj].x + DX[1]; //向下的坐标
+                                        int ny2 = Robots[rj].y + DY[1];
+                                        if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0){ //两个方向都可行,随机选一个
+                                            new_dir = rand() % 2; // 生成 0 或 1
+                                        }
+                                        else if (World[nx1][ny1] >= 0){
+                                            new_dir = 0; //上
+                                        }
+                                        else if (World[nx2][ny2] >= 0){
+                                            new_dir = 1; //下
+                                        }
+                                        else{ //后退
+                                            new_dir = (new_dir + 2) % 4;
+                                        }
+                                    }
+
+                                    Robots[rj].dir = new_dir; //改变rj方向
+                                }
+
+                                break;
                             }
                             // 抢位
                             if (nx_ri == nx_rj && ny_ri == ny_rj)
@@ -762,11 +1084,25 @@ void AvoidCollision()
                                 // 都有货物或者都没有货物则比较性价比
                                 else if (Robots[ri].is_goods && Robots[rj].is_goods)
                                 {
-                                    //
+                                    if (GetGoodsRobotsCompair(ri,rj)){ //我拿的好
+                                        //别人停
+                                        Robots[rj].dir = -1;
+                                    }
+                                    else{ //别人拿的好
+                                        //我停
+                                        Robots[ri].dir = -1;
+                                    }
                                 }
                                 else
                                 {
-                                    //
+                                    if (NoGoodsRobotsCompair(ri,rj)){ //我要拿的好
+                                        //别人停
+                                        Robots[rj].dir = -1;
+                                    }
+                                    else{ //别人要拿的好
+                                        //我停
+                                        Robots[ri].dir = -1;
+                                    }
                                 }
                                 break;
                             }
@@ -791,7 +1127,30 @@ void AvoidCollision()
 // 打印机器人指令
 void PrintRobotsIns()
 {
-    // 
+    // move:0:右，1:左，2:上，3:下
+    for (int i = 0; i < ROBOT_NUM; i++){
+        if (Robots[i].action >= 0){
+            if (Robots[i].action == 0){ //get
+                printf("get %d\n", i);
+            }
+            else if (Robots[i].action == 1){ //pull
+                printf("pull %d\n", i);
+            }
+        }
+        if (Robots[i].dir == 0) { // 上
+            printf("move %d 2\n", i);
+        } 
+        else if (Robots[i].dir == 1) { // 下
+            printf("move %d 3\n", i);
+        } 
+        else if (Robots[i].dir == 2) { // 左
+            printf("move %d 1\n", i);
+        } 
+        else if (Robots[i].dir == 3) { // 右
+            printf("move %d 0\n", i);
+        }
+    }
+
 }
 
 int main()
