@@ -697,7 +697,7 @@ void RobotDispatch()
                     Robots[i].goods_index = goods_id;     // 机器人要拿的物品编号
                     AllGoods[goods_id].lock = 1;          // 物品上锁
                     Robots[i].dir = roads[i][j].next_dir; // 机器人方向
-                    Robots[i].berth_index = roads[i][k].berth_index; //物品最近港口
+                    Robots[i].berth_index = roads[i][j].berth_index; //物品最近港口
                     break;
                 }
             }
