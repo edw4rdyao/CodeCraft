@@ -173,7 +173,7 @@ int FindBestBerth(set<int> busy_berth) // 返回最佳泊位编号
         else if (busy_berth.find(i) == busy_berth.end()) // 泊位是空闲的
         {
             int load_time = Berths[i].goods_queue.size() / Berths[i].loading_speed;
-            double value_time_tmp = (double)Berths[i].sum_goods_value() / load_time;
+            double value_time_tmp = (double)Berths[i].sum_goods_value() / (load_time + Berths[i].transport_time * 2);
             if (value_time_tmp > value_time)
             {
                 value_time = value_time_tmp;
@@ -278,7 +278,7 @@ void BoatDispatch()
                                 min_distance = distance;
                             }
                         }
-                    if (min_distance > Berths[Boats[i].pos].transport_time / 2) // 没有机器人锁定港口且带货
+                    if (min_distance > Berths[Boats[i].pos].transport_time) // 没有机器人锁定港口且带货
                     {
                         printf("go %d\n", i);
                         Berths[Boats[i].pos].boat_num--;
