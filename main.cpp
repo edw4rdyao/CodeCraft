@@ -21,6 +21,9 @@ const int BOAT_NUM = 5;
 const int N = 200;
 const int MAX_GOODS_NUM = 150000;
 
+const int MAX_ROAD_NUM = 5;
+const int MAX_ROAD_LEN = 50;
+
 const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
 const int REV_DIR[4] = {1, 0, 3, 2}; // 上下左右的反方向（用于BFS记录路径）：下上右左
@@ -71,6 +74,7 @@ struct Robot
         this->goods_index = -1;
         this->goods_distance = 40001;
         this->berth_index = -1;
+        this->is_dead = 0;
     }
 
 } Robots[ROBOT_NUM];
@@ -785,6 +789,12 @@ void RobotDsipatchGreedy()
     set<int> goods_match;                   // 被匹配的商品
     int robot_match_num = 0;                // 被匹配的机器人数
 
+    pair<int, int> berth_robot_num[BERTH_NUM]; //每个港口作为目标匹配的机器人数
+    // 初始化，所有机器人数目设置为0
+    for (int i = 0; i < BERTH_NUM; i++) {
+        berth_robot_num[i] = {i, 0}; 
+    }
+
     for (int ri = 0; ri < ROBOT_NUM; ri++)
     { // 对于每个机器人
         if (Robots[ri].is_dead == 1 || Robots[ri].status == 0)
@@ -801,7 +811,7 @@ void RobotDsipatchGreedy()
                 Robots[ri].action = 1;
                 Robots[ri].goods_index = -1;
                 Robots[ri].goods_distance = 40000;
-                Robots[ri].berth_index = -1;
+                //Robots[ri].berth_index = -1;
                 Robots[ri].is_goods = 0;
             }
             else
@@ -820,6 +830,7 @@ void RobotDsipatchGreedy()
         vector<vector<int>> goods_path(200, vector<int>(200, -1));
         vector<vector<int>> goods_path_length(200, vector<int>(200, -1));
         queue<pair<int, int>> q;
+        int ri_road_num = 0;
 
         q.push({robot_x, robot_y});
         goods_path_length[robot_x][robot_y] = 0;
@@ -831,14 +842,22 @@ void RobotDsipatchGreedy()
 
             int goods_id = IsOnGoods(cur_pos.first, cur_pos.second);
             int cur_path_length = goods_path_length[cur_pos.first][cur_pos.second];
-            if (goods_id >= 0 && cur_path_length < (1000 - (Frame - AllGoods[goods_id].refresh_frame)))
-            { // 如果现在的位置有物品，并且机器人到物品处时商品未消失, 计算最近港口和性价比，并将路径加入
-                int to_berth_index = -1;
-                double value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index);
-                roads_pq.push(Road(ri, goods_id, cur_path_length, to_berth_index, goods_path[cur_pos.first][cur_pos.second], value));
+            if (goods_id >= 0)
+            { // 如果现在的位置有物品
+                if (Frame - AllGoods[goods_id].refresh_frame >= 1000)
+                { // 该物品已消失
+                    World[cur_pos.first][cur_pos.second] = 0;
+                }
+                else if (cur_path_length < (1000 - (Frame - AllGoods[goods_id].refresh_frame)))
+                { // 机器人到物品处时商品未消失, 计算最近港口和性价比，并将路径加入
+                    int to_berth_index = -1;
+                    double value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index);
+                    roads_pq.push(Road(ri, goods_id, cur_path_length, to_berth_index, goods_path[cur_pos.first][cur_pos.second], value));
+                    ri_road_num ++;
+                }
             }
-            // 限制搜索的范围
-            if (cur_path_length > 80)
+            // 限制搜索的范围以控制时间
+            if (ri_road_num > MAX_ROAD_NUM || cur_path_length > MAX_ROAD_LEN)
             {
                 break;
             }
@@ -889,12 +908,43 @@ void RobotDsipatchGreedy()
                 Robots[ri].action = 0;
                 Robots[ri].is_goods = 1;
                 Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y];
+                World[Robots[ri].x][Robots[ri].y] = 0;
             }
             robot_match_num++;
             robots_match[ri] = 1;
+            goods_match.insert(road.goods_index);
         }
         roads_pq.pop();
     }
+
+    //若有人没匹配上
+    for (int i = 0; i < ROBOT_NUM; i++){
+        //先统计每个港口作为目标匹配的机器人数
+        if (Robots[i].berth_index != -1){ 
+            berth_robot_num[Robots[i].berth_index].second++;
+        }
+    }
+    //按港口机器人数排序
+    sort(berth_robot_num, berth_robot_num + BERTH_NUM, 
+        [](const std::pair<int, int>& a, const std::pair<int, int>& b) {
+            return a.second < b.second;
+        });
+    for (int i = 0; i < ROBOT_NUM; i++){
+        // 没匹配上的向人最少的港口移动
+        if (robots_match[i] == 0){ //没匹配上
+            int j = 0;
+            for (j = 0; j < BERTH_NUM; j++){
+                if (BerthPathLenth[berth_robot_num[j].first][Robots[i].x][Robots[i].y] >= 0){
+                    Robots[i].dir = BerthPath[berth_robot_num[j].first][Robots[i].x][Robots[i].y]; //向人最少的港口移动一步
+                    break;
+                }
+            }
+            if (j == BERTH_NUM){
+                Robots[i].dir = -1; //到不了港口罚站
+            }
+        }
+    }
+
 }
 
 // 对冲让位函数
@@ -994,20 +1044,29 @@ void AvoidCollision()
                 {
                     if (ri != rj)
                     {
-                        // ？碰上不移动的机器人j，则机器人i自己也不动（停一帧）
+                        // 碰上不移动的机器人j
                         if (Robots[rj].dir < 0 && Robots[rj].x == nx_ri && Robots[rj].y == ny_ri)
                         {
                             is_collision = true;
-                            Robots[ri].dir = -1;
+                            //？若不动的处于恢复状态，我垂直移动，不行我就罚站
+                            if (Robots[rj].status == 0){
+                                if (CrashAvoid(ri)){
+                                    Robots[ri].dir = -1;
+                                };
+                            }
+                            //若不动的只是在罚站，他垂直移动
+                            else{
+                                CrashAvoid(rj);
+                            }
                             break;
                         }
                         // 碰上移动的机器人j
-                        if (Robots[rj].dir > 0)
+                        if (Robots[rj].dir >= 0)
                         {
                             int nx_rj = Robots[rj].x + DX[Robots[rj].dir];
                             int ny_rj = Robots[rj].y + DY[Robots[rj].dir];
                             // 对冲
-                            if (Robots[rj].x == nx_ri && Robots[rj].y == ny_ri && (Robots[rj].dir / 2 == Robots[rj].dir / 2))
+                            if (Robots[rj].x == nx_ri && Robots[rj].y == ny_ri && (Robots[ri].dir / 2 == Robots[rj].dir / 2))
                             {
                                 is_collision = true;
                                 // 性价比低的机器人避让（优先让两边，实在不行往后面退，再不行就让性价比高的让）
