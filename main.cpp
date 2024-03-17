@@ -22,8 +22,8 @@ const int N = 200;
 const int MAX_GOODS_NUM = 150000;
 const int MAX_LENGTH = 80000;
 
-const int MAX_ROAD_NUM = 20;
-const int MAX_ROAD_LEN = 200;
+const int MAX_ROAD_NUM = 50;
+const int MAX_ROAD_LEN = 300;
 
 const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
@@ -75,6 +75,7 @@ struct Robot
         this->goods_distance = MAX_LENGTH;
         this->berth_index = -1;
         this->is_dead = 0;
+        this->action = -1;
     }
 
 } Robots[ROBOT_NUM];
@@ -246,8 +247,8 @@ void BoatDispatch()
         }
         else if (Boats[i].status == 1) // 船只在装货或运输完成
         {
-            if (Boats[i].pos == -1) // 船只在虚拟点
-            {
+            if (Boats[i].pos == -1)
+            { // 船只在虚拟点，卸货完成
                 int best_berth = FindBestBerth(BusyBerth());
                 if (best_berth != -1)
                 {
@@ -259,15 +260,23 @@ void BoatDispatch()
                 else
                     continue;
             }
-            else // 船只在港口
+            else // 船只在港口，一定在装货
             {
-                if (Boats[i].goods_num == BoatCapacity) // 船只装满货物
-                {
+                // 首先判断是否不够时间运过去了
+                if (Berths[Boats[i].pos].transport_time >= 15000 - Frame)
+                { // 运输到虚拟点得到钱的时间要大于等于剩下的时间了，必须走
                     printf("go %d\n", i);
+                    // 更新状态
                     Berths[Boats[i].pos].boat_num--;
                 }
-                else if (Berths[Boats[i].pos].transport_time < 15000 - Frame - 1) // 没到最后时刻
-                {
+                else if (Boats[i].goods_num >= BoatCapacity)
+                { // 船只装满货物，也必须走
+                    printf("go %d\n", i);
+                    // 更新状态
+                    Berths[Boats[i].pos].boat_num--;
+                }
+                else
+                { // 还在装货 TODO：考虑港口之间的移动）？如果港口上还有货，应该是需要继续装的，没货再判断机器人那个？
                     int min_distance = MAX_LENGTH;
                     for (int j = 0; j < ROBOT_NUM; j++)
                         if (Robots[j].berth_index == Boats[i].pos && Robots[j].is_goods == 1) // 机器人锁定港口且带货
@@ -284,15 +293,10 @@ void BoatDispatch()
                         Berths[Boats[i].pos].boat_num--;
                     }
                 }
-                else
-                { // 到最后时刻了
-                    printf("go %d\n", i);
-                    Berths[Boats[i].pos].boat_num--;
-                }
             }
         }
-        else if (Boats[i].status == 2) // 船只在等待
-        {
+        else if (Boats[i].status == 2) 
+        {// 船只在等待 TODO：如果船只到这里中转的，则命令其向真正的终点出发
             int best_berth = FindBestBerth(BusyBerth());
             if (best_berth != -1)
             {
@@ -453,6 +457,8 @@ void Init()
     ToBerthBFS();
     // 判断每个机器人和所有港口的可达性（如果都不可达则被困死）
     JudgeRobotsLife();
+
+    // TODO：记录虚拟点到泊点之间的最短路径
 
     // ok
     printf("OK\n");
@@ -638,7 +644,7 @@ void RobotDsipatchGreedy()
                 }
             }
             // 限制搜索的范围以控制时间
-            if (ri_road_num > MAX_ROAD_NUM)
+            if (cur_path_length >= MAX_ROAD_LEN || ri_road_num > MAX_ROAD_NUM)
             {
                 break;
             }
@@ -697,44 +703,62 @@ void RobotDsipatchGreedy()
         roads_pq.pop();
     }
 
-    pair<int, int> berth_robot_num[BERTH_NUM]; // 每个港口作为目标匹配的机器人数
-    // 初始化，所有机器人数目设置为0
-    for (int i = 0; i < BERTH_NUM; i++)
-    {
-        berth_robot_num[i] = {i, 0};
-    }
-    // 若有人没匹配上
-    for (int i = 0; i < ROBOT_NUM; i++)
-    {
-        // 先统计每个港口作为目标匹配的机器人数
-        if (Robots[i].berth_index != -1)
-        {
-            berth_robot_num[Robots[i].berth_index].second++;
-        }
-    }
-    // 按港口机器人数排序
-    sort(berth_robot_num, berth_robot_num + BERTH_NUM,
-         [](const std::pair<int, int> &a, const std::pair<int, int> &b)
-         {
-             return a.second < b.second;
-         });
-    for (int i = 0; i < ROBOT_NUM; i++)
-    {
-        // 没匹配上的向人最少的港口移动
-        if (robots_match[i] == 0)
-        { // 没匹配上
-            int j = 0;
-            for (j = 0; j < BERTH_NUM; j++)
+    // pair<int, int> berth_robot_num[BERTH_NUM]; // 每个港口作为目标匹配的机器人数
+    // // 初始化，所有机器人数目设置为0
+    // for (int i = 0; i < BERTH_NUM; i++)
+    // {
+    //     berth_robot_num[i] = {i, 0};
+    // }
+    // // 若有人没匹配上
+    // for (int i = 0; i < ROBOT_NUM; i++)
+    // {
+    //     // 先统计每个港口作为目标匹配的机器人数
+    //     if (Robots[i].berth_index != -1)
+    //     {
+    //         berth_robot_num[Robots[i].berth_index].second++;
+    //     }
+    // }
+    // // 按港口机器人数排序
+    // sort(berth_robot_num, berth_robot_num + BERTH_NUM,
+    //      [](const std::pair<int, int> &a, const std::pair<int, int> &b)
+    //      {
+    //          return a.second < b.second;
+    //      });
+    // for (int i = 0; i < ROBOT_NUM; i++)
+    // {
+    //     // 没匹配上的机器人向人最少的港口移动
+    //     if (robots_match[i] == 0)
+    //     { // 没匹配上
+    //         int j = 0;
+    //         for (j = 0; j < BERTH_NUM; j++)
+    //         {
+    //             if (BerthPathLenth[berth_robot_num[j].first][Robots[i].x][Robots[i].y] >= 0)
+    //             {
+    //                 Robots[i].dir = BerthPath[berth_robot_num[j].first][Robots[i].x][Robots[i].y]; // 向人最少的港口移动一步
+    //                 break;
+    //             }
+    //         }
+    //         if (j == BERTH_NUM)
+    //         {
+    //             Robots[i].dir = -1; // 到不了港口罚站
+    //         }
+    //     }
+    // }
+
+    for (int ri = 0; ri < ROBOT_NUM; ri++)
+    { // 没匹配上的机器人向远离港口(上一次放货的港口)的方向移动
+        if (robots_match[ri] == 0 && Robots[ri].berth_index >= 0)
+        { // 没匹配上（没有找到目标商品）
+            for (int i = 0; i < 4; i++)
             {
-                if (BerthPathLenth[berth_robot_num[j].first][Robots[i].x][Robots[i].y] >= 0)
-                {
-                    Robots[i].dir = BerthPath[berth_robot_num[j].first][Robots[i].x][Robots[i].y]; // 向人最少的港口移动一步
+                int new_dir = (ri + i) % 4;
+                int nx_ri = Robots[ri].x + DX[new_dir];
+                int ny_ri = Robots[ri].y + DY[new_dir];
+                if (BerthPathLenth[Robots[ri].berth_index][nx_ri][ny_ri] > BerthPathLenth[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y])
+                { // 这个位置去港口的路程更大，就相当于远离港口
+                    Robots[ri].dir = new_dir;
                     break;
                 }
-            }
-            if (j == BERTH_NUM)
-            {
-                Robots[i].dir = -1; // 到不了港口罚站
             }
         }
     }
