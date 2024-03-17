@@ -142,10 +142,6 @@ struct Boat
                 }
             }
         }
-        if (i == BERTH_NUM)
-        {
-            return -1;
-        }
         return berth_tmp;
     }
 
@@ -254,6 +250,7 @@ void BoatDispatch()
                 {
                     printf("ship %d %d\n", i, best_berth);
                     Boats[i].goods_num = 0;
+                    Boats[i].pos = best_berth;
                 }
                 else
                     continue;
@@ -263,8 +260,9 @@ void BoatDispatch()
                 if (Boats[i].goods_num == BoatCapacity) // 船只装满货物
                 {
                     printf("go %d\n", i);
+                    Boats[i].pos = -1;
                 }
-                else if (Berths[Boats[i].pos].transport_time < 15000 - Frame) // 没到最后时刻
+                else if (Berths[Boats[i].pos].transport_time < 15000 - Frame - 1) // 没到最后时刻
                 {
                     Boats[i].load_goods();
                     int min_distance = MAX_LENGTH;
@@ -272,20 +270,22 @@ void BoatDispatch()
                         if (Robots[j].berth_index == Boats[i].pos && Robots[j].is_goods == 1) // 机器人锁定港口且带货
                         {
                             int distance = BerthPathLenth[Robots[j].berth_index][Robots[j].x][Robots[j].y];
-                            if (distance / 2 < min_distance)
+                            if (distance < min_distance)
                             {
                                 min_distance = distance;
                             }
                         }
-                    if (min_distance > Berths[Boats[i].pos].transport_time) // 没有机器人锁定港口且带货
+                    if (min_distance > Berths[Boats[i].pos].transport_time / 2) // 没有机器人锁定港口且带货
                     {
                         printf("go %d\n", i);
+                        Boats[i].pos = -1;
                     }
                 }
                 else
                 { // 到最后时刻了
                     Boats[i].load_goods();
                     printf("go %d\n", i);
+                    Boats[i].pos = -1;
                 }
             }
         }
@@ -731,7 +731,7 @@ bool CrashAvoid(int ri)
     // ri优先让两边
     int new_dir = Robots[ri].dir; // 新方向
 
-    srand(time(nullptr)); // 使用当前时间作为随机数生成器的种子
+    // srand(time(nullptr)); // 使用当前时间作为随机数生成器的种子
 
     if (new_dir == 0 || new_dir == 1)
     {
@@ -743,8 +743,8 @@ bool CrashAvoid(int ri)
         int nx3 = Robots[ri].x + DX[(new_dir + 1) % 2]; // 向后的坐标
         int ny3 = Robots[ri].y + DY[(new_dir + 1) % 2];
         if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0)
-        {                             // 两个方向都可行,随机选一个
-            new_dir = 2 + rand() % 2; // 生成 2 或 3
+        {                         // 两个方向都可行,随机选一个
+            new_dir = 2 + ri % 2; // 生成 2 或 3
         }
         else if (World[nx1][ny1] >= 0)
         {
@@ -773,8 +773,8 @@ bool CrashAvoid(int ri)
         int nx3 = Robots[ri].x + DX[5 - new_dir]; // 向后的坐标
         int ny3 = Robots[ri].y + DY[5 - new_dir];
         if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0)
-        {                         // 两个方向都可行,随机选一个
-            new_dir = rand() % 2; // 生成 0 或 1
+        {                     // 两个方向都可行,随机选一个
+            new_dir = ri % 2; // 生成 0 或 1
         }
         else if (World[nx1][ny1] >= 0)
         {
@@ -847,7 +847,7 @@ void AvoidCollision()
                             int nx_rj = Robots[rj].x + DX[Robots[rj].dir];
                             int ny_rj = Robots[rj].y + DY[Robots[rj].dir];
                             // 对冲
-                            if (Robots[rj].x == nx_ri && Robots[rj].y == ny_ri && (Robots[ri].dir / 2 == Robots[rj].dir / 2))
+                            if (Robots[rj].x == nx_ri && Robots[rj].y == ny_ri && Robots[ri].x == nx_rj && Robots[ri].y == ny_rj)
                             {
                                 is_collision = true;
                                 // 性价比低的机器人避让（优先让两边，实在不行往后面退，再不行就让性价比高的让）
