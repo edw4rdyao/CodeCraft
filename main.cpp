@@ -84,6 +84,7 @@ struct Berth
     int x, y;               // 泊位的坐标
     int transport_time;     // 货物运输时间
     int loading_speed;      // 货物装卸速度
+    int boat_num;           // 泊位上的船的数量
     queue<int> goods_queue; // 泊位上的货物队列
 
     Berth() {}
@@ -93,6 +94,7 @@ struct Berth
         this->y = y;
         this->transport_time = transport_time;
         this->loading_speed = loading_speed;
+        this->boat_num = 0;
     }
     int sum_goods_value()
     {
@@ -119,34 +121,6 @@ struct Boat
         this->pos = pos;
         this->status = status;
         this->goods_num = 0;
-    }
-    int find_best_berth(set<int> busy_berth) // 返回最佳泊位编号
-    {
-        double value_time = 0;
-        int berth_tmp = -1;
-        int i = 0;
-        for (i = 0; i < BERTH_NUM; i++)
-        {
-            if (Berths[i].goods_queue.empty()) // 泊位上没有货物
-            {
-                continue;
-            }
-            else if (busy_berth.find(i) == busy_berth.end()) // 泊位是空闲的
-            {
-                int load_time = Berths[i].goods_queue.size() / Berths[i].loading_speed;
-                double value_time_tmp = (double)Berths[i].sum_goods_value() / load_time;
-                if (value_time_tmp > value_time)
-                {
-                    value_time = value_time_tmp;
-                    berth_tmp = i;
-                }
-            }
-        }
-        if (i == BERTH_NUM)
-        {
-            return -1;
-        }
-        return berth_tmp;
     }
 
     void load_goods() // 装货
@@ -176,14 +150,38 @@ struct Boat
 set<int> BusyBerth()
 {
     set<int> busy_berth;
-    for (int i = 0; i < BOAT_NUM; i++)
+    for (int i = 0; i < BERTH_NUM; i++)
     {
-        if (Boats[i].pos != -1)
+        if (Berths[i].boat_num > 0)
         {
-            busy_berth.insert(Boats[i].pos);
+            busy_berth.insert(i);
         }
     }
     return busy_berth;
+}
+
+int FindBestBerth(set<int> busy_berth) // 返回最佳泊位编号
+{
+    double value_time = 0;
+    int berth_tmp = -1;
+    for (int i = 0; i < BERTH_NUM; i++)
+    {
+        if (Berths[i].goods_queue.empty()) // 泊位上没有货物
+        {
+            continue;
+        }
+        else if (busy_berth.find(i) == busy_berth.end()) // 泊位是空闲的
+        {
+            int load_time = Berths[i].goods_queue.size() / Berths[i].loading_speed;
+            double value_time_tmp = (double)Berths[i].sum_goods_value() / load_time;
+            if (value_time_tmp > value_time)
+            {
+                value_time = value_time_tmp;
+                berth_tmp = i;
+            }
+        }
+    }
+    return berth_tmp;
 }
 
 // 检查坐标(x, y)是否在地图范围内并且不是障碍物或者海洋
@@ -237,6 +235,7 @@ double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
     return cost_value;
 }
 
+// 船的调度
 void BoatDispatch()
 {
     for (int i = 0; i < BOAT_NUM; i++)
@@ -249,10 +248,11 @@ void BoatDispatch()
         {
             if (Boats[i].pos == -1) // 船只在虚拟点
             {
-                int best_berth = Boats[i].find_best_berth(BusyBerth());
+                int best_berth = FindBestBerth(BusyBerth());
                 if (best_berth != -1)
                 {
                     printf("ship %d %d\n", i, best_berth);
+                    Berths[best_berth].boat_num++;
                     Boats[i].goods_num = 0;
                 }
                 else
@@ -263,41 +263,55 @@ void BoatDispatch()
                 if (Boats[i].goods_num == BoatCapacity) // 船只装满货物
                 {
                     printf("go %d\n", i);
+                    Berths[Boats[i].pos].boat_num--;
                 }
                 else if (Berths[Boats[i].pos].transport_time < 15000 - Frame) // 没到最后时刻
                 {
-                    Boats[i].load_goods();
                     int min_distance = MAX_LENGTH;
                     for (int j = 0; j < ROBOT_NUM; j++)
                         if (Robots[j].berth_index == Boats[i].pos && Robots[j].is_goods == 1) // 机器人锁定港口且带货
                         {
                             int distance = BerthPathLenth[Robots[j].berth_index][Robots[j].x][Robots[j].y];
-                            if (distance / 2 < min_distance)
+                            if (distance < min_distance)
                             {
                                 min_distance = distance;
                             }
                         }
-                    if (min_distance > Berths[Boats[i].pos].transport_time) // 没有机器人锁定港口且带货
+                    if (min_distance / 2 > Berths[Boats[i].pos].transport_time) // 没有机器人锁定港口且带货
                     {
                         printf("go %d\n", i);
+                        Berths[Boats[i].pos].boat_num--;
                     }
                 }
                 else
                 { // 到最后时刻了
-                    Boats[i].load_goods();
                     printf("go %d\n", i);
+                    Berths[Boats[i].pos].boat_num--;
                 }
             }
         }
         else if (Boats[i].status == 2) // 船只在等待
         {
-            int best_berth = Boats[i].find_best_berth(BusyBerth());
+            int best_berth = FindBestBerth(BusyBerth());
             if (best_berth != -1)
             {
                 printf("ship %d %d\n", i, best_berth);
+                Berths[best_berth].boat_num++;
             }
             else
                 continue;
+        }
+    }
+}
+
+// 最后装载货物
+void LoadGoods()
+{
+    for (int i = 0; i < BOAT_NUM; i++)
+    {
+        if (Boats[i].status == 1 && Boats[i].pos != -1) // 船只在装货
+        {
+            Boats[i].load_goods();
         }
     }
 }
@@ -1003,6 +1017,7 @@ int main()
         AvoidCollision();
         PrintRobotsIns();
         BoatDispatch();
+        LoadGoods();
         puts("OK");
         fflush(stdout);
     }
