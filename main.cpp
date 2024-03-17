@@ -38,7 +38,6 @@ struct Goods
     int x, y;          // 货物的坐标
     int val;           // 货物的价值
     int refresh_frame; // 货物的刷新帧数
-    // int lock;          // 货物是否被机器人锁定(0:未锁定)
 
     Goods() {}
     Goods(int x, int y, int val, int refresh_frame)
@@ -74,6 +73,7 @@ struct Robot
         this->goods_index = -1;
         this->goods_distance = 40001;
         this->berth_index = -1;
+        this->is_dead = 0;
     }
 
 } Robots[ROBOT_NUM];
@@ -846,7 +846,7 @@ void RobotDsipatchGreedy()
                     int to_berth_index = -1;
                     double value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index);
                     roads_pq.push(Road(ri, goods_id, cur_path_length, to_berth_index, goods_path[cur_pos.first][cur_pos.second], value));
-                    ri_road_num ++;
+                    ri_road_num++;
                 }
             }
             // 限制搜索的范围以控制时间
@@ -997,7 +997,7 @@ void AvoidCollision()
         for (int ri = 0; ri < ROBOT_NUM; ri++)
         {
             // 如果这个机器人没有被困死并且下一步会移动（对于每个机器人只考虑主动碰撞，如果是被碰，会被其他机器人主动碰）
-            if (!Robots[ri].is_dead && Robots[ri].dir >= 0)
+            if (Robots[ri].is_dead == 0 && Robots[ri].dir >= 0)
             {
                 // 机器人i下一步的位置
                 int nx_ri = Robots[ri].x + DX[Robots[ri].dir];
@@ -1021,7 +1021,7 @@ void AvoidCollision()
                             int nx_rj = Robots[rj].x + DX[Robots[rj].dir];
                             int ny_rj = Robots[rj].y + DY[Robots[rj].dir];
                             // 对冲
-                            if (Robots[rj].x == nx_ri && Robots[rj].y == ny_ri && (Robots[rj].dir / 2 == Robots[rj].dir / 2))
+                            if (Robots[rj].x == nx_ri && Robots[rj].y == ny_ri && (Robots[rj].dir / 2 == Robots[ri].dir / 2))
                             {
                                 is_collision = true;
                                 // 性价比低的机器人避让（优先让两边，实在不行往后面退，再不行就让性价比高的让）
@@ -1080,37 +1080,39 @@ void AvoidCollision()
                             {
                                 is_collision = true;
                                 // 有货物的优先走，另一个停下
-                                if (Robots[ri].is_goods && !Robots[rj].is_goods)
-                                {
-                                    Robots[rj].dir = -1;
-                                }
-                                else if (Robots[rj].is_goods && !Robots[ri].is_goods)
-                                {
-                                    Robots[ri].dir = -1;
-                                }
-                                // 都有货物或者都没有货物则比较性价比
-                                else if (Robots[ri].is_goods && Robots[rj].is_goods)
-                                {
-                                    if (GetGoodsRobotsCompair(ri, rj))
-                                    { // 我拿的好，别人停
-                                        Robots[rj].dir = -1;
-                                    }
-                                    else
-                                    { // 别人拿的好，我停
-                                        Robots[ri].dir = -1;
-                                    }
-                                }
-                                else
-                                {
-                                    if (NoGoodsRobotsCompair(ri, rj))
-                                    { // 我要拿的好，别人停
-                                        Robots[rj].dir = -1;
-                                    }
-                                    else
-                                    { // 别人要拿的好，我停
-                                        Robots[ri].dir = -1;
-                                    }
-                                }
+                                // if (Robots[ri].is_goods && !Robots[rj].is_goods)
+                                // {
+                                //     Robots[rj].dir = -1;
+                                // }
+                                // else if (Robots[rj].is_goods && !Robots[ri].is_goods)
+                                // {
+                                //     Robots[ri].dir = -1;
+                                // }
+                                // // 都有货物或者都没有货物则比较性价比
+                                // else if (Robots[ri].is_goods && Robots[rj].is_goods)
+                                // {
+                                //     if (GetGoodsRobotsCompair(ri, rj))
+                                //     { // 我拿的好，别人停
+                                //         Robots[rj].dir = -1;
+                                //     }
+                                //     else
+                                //     { // 别人拿的好，我停
+                                //         Robots[ri].dir = -1;
+                                //     }
+                                // }
+                                // else
+                                // {
+                                //     if (NoGoodsRobotsCompair(ri, rj))
+                                //     { // 我要拿的好，别人停
+                                //         Robots[rj].dir = -1;
+                                //     }
+                                //     else
+                                //     { // 别人要拿的好，我停
+                                //         Robots[ri].dir = -1;
+                                //     }
+                                // }
+                                Robots[ri].dir = -1;
+                                Robots[rj].dir = -1;
                                 break;
                             }
                         }
