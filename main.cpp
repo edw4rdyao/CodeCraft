@@ -22,8 +22,8 @@ const int N = 200;
 const int MAX_GOODS_NUM = 150000;
 const int MAX_LENGTH = 80000;
 
-const int MAX_ROAD_NUM = 5;
-const int MAX_ROAD_LEN = 50;
+const int MAX_ROAD_NUM = 20;
+const int MAX_ROAD_LEN = 200;
 
 const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
@@ -618,15 +618,14 @@ void RobotDsipatchGreedy()
                 }
             }
             // 限制搜索的范围以控制时间
-            if (ri_road_num > MAX_ROAD_NUM || cur_path_length > MAX_ROAD_LEN)
+            if (ri_road_num > MAX_ROAD_NUM)
             {
                 break;
             }
             // 四个方向随机遍历
-            vector<int> random_dir = GetRandomDirection();
             for (int i = 0; i < 4; i++)
             { // 遍历到下一个点
-                int dir = random_dir[i];
+                int dir = (ri + i) % 4;
                 int nx = cur_pos.first + DX[dir];
                 int ny = cur_pos.second + DY[dir];
                 if (IsValid(nx, ny) && goods_path_length[nx][ny] < 0)
@@ -825,7 +824,7 @@ void AvoidCollision()
                             // ？若不动的处于恢复状态，我垂直移动，不行我就罚站
                             if (Robots[rj].status == 0)
                             {
-                                if (CrashAvoid(ri))
+                                if (!CrashAvoid(ri))
                                 {
                                     Robots[ri].dir = -1;
                                 };
