@@ -124,11 +124,12 @@ struct Boat
     {
         double value_time = 0;
         int berth_tmp = -1;
-        for (int i = 0; i < BERTH_NUM; i++)
+        int i = 0;
+        for (i = 0; i < BERTH_NUM; i++)
         {
             if (Berths[i].goods_queue.empty()) // 泊位上没有货物
             {
-                return -1;
+                continue;
             }
             else if (busy_berth.find(i) == busy_berth.end()) // 泊位是空闲的
             {
@@ -140,6 +141,10 @@ struct Boat
                     berth_tmp = i;
                 }
             }
+        }
+        if (i == BERTH_NUM)
+        {
+            return -1;
         }
         return berth_tmp;
     }
@@ -267,7 +272,7 @@ void BoatDispatch()
                         if (Robots[j].berth_index == Boats[i].pos && Robots[j].is_goods == 1) // 机器人锁定港口且带货
                         {
                             int distance = BerthPathLenth[Robots[j].berth_index][Robots[j].x][Robots[j].y];
-                            if (distance < min_distance)
+                            if (distance / 2 < min_distance)
                             {
                                 min_distance = distance;
                             }
@@ -292,7 +297,7 @@ void BoatDispatch()
                 printf("ship %d %d\n", i, best_berth);
             }
             else
-                return;
+                continue;
         }
     }
 }
