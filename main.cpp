@@ -248,9 +248,10 @@ void BoatDispatch()
                 if (best_berth != -1)
                 {
                     printf("ship %d %d\n", i, best_berth);
+                    Boats[i].goods_num = 0;
                 }
                 else
-                    return;
+                    continue;
             }
             else // 船只在港口
             {
@@ -258,7 +259,7 @@ void BoatDispatch()
                 {
                     printf("go %d\n", i);
                 }
-                else
+                else if (Berths[Boats[i].pos].transport_time >= 15000-Frame-1) //没到最后时刻
                 {
                     Boats[i].load_goods();
                     int min_distance = 40001;
@@ -275,6 +276,10 @@ void BoatDispatch()
                     {
                         printf("go %d\n", i);
                     }
+                }
+                else{ //到最后时刻了
+                    Boats[i].load_goods();
+                    printf("go %d\n", i);
                 }
             }
         }
@@ -809,6 +814,7 @@ void RobotDsipatchGreedy()
             if (IsInBerth(ri))
             { // 如果到达港口，放下货物，继续找其他货物（?是否需要判断是不是自己要去的港口呢）
                 Robots[ri].action = 1;
+                Berths[Robots[ri].berth_index].goods_queue.push(Robots[ri].goods_index); //港口放入货物
                 Robots[ri].goods_index = -1;
                 Robots[ri].goods_distance = 40000;
                 //Robots[ri].berth_index = -1;
