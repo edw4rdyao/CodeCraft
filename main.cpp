@@ -12,7 +12,6 @@
 #include <set>
 #include <random>
 #include <cstring>
-#include <cstdlib> // 包含 rand() 和 srand()
 #include <ctime>   // 包含 time()
 #include <fstream>
 #endif
@@ -28,7 +27,7 @@ const int MAX_LENGTH = 80000;
 const int BERTH_TRAN_LEN = 500;
 
 const int MAX_ROAD_NUM = 50;
-const int MAX_ROAD_LEN = 300;
+const int MAX_ROAD_LEN = 250; // 300
 
 const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
@@ -163,44 +162,6 @@ struct Boat
     }
 } Boats[BOAT_NUM];
 
-// 返回泊位上有货物的泊位编号
-set<int> BusyBerth()
-{
-    set<int> busy_berth;
-    for (int i = 0; i < BERTH_NUM; i++)
-    {
-        if (Berths[i].boat_num > 0)
-        {
-            busy_berth.insert(i);
-        }
-    }
-    return busy_berth;
-}
-
-int FindBestBerth(set<int> busy_berth) // 返回最佳泊位编号
-{
-    double value_time = 0;
-    int berth_tmp = -1;
-    for (int i = 0; i < BERTH_NUM; i++)
-    {
-        if (Berths[i].goods_queue.empty()) // 泊位上没有货物
-        {
-            continue;
-        }
-        else if (busy_berth.find(i) == busy_berth.end()) // 泊位是空闲的
-        {
-            int load_time = Berths[i].goods_queue.size() / Berths[i].loading_speed;
-            double value_time_tmp = (double)Berths[i].sum_goods_value() / (load_time + Berths[i].transport_time * 2);
-            if (value_time_tmp > value_time)
-            {
-                value_time = value_time_tmp;
-                berth_tmp = i;
-            }
-        }
-    }
-    return berth_tmp;
-}
-
 // 检查坐标(x, y)是否在地图范围内并且不是障碍物或者海洋
 bool IsValid(int x, int y)
 {
@@ -267,7 +228,7 @@ void BoatToVirtual(int boat_index)
     Berths[Boats[boat_index].pos].boat_num--; // 港口的真正的船数量减一
 }
 
-int FindBestBerthFromVitual(int boat_index)
+int FindBestBerthFromVirtual(int boat_index)
 {
     int best_berth = -1;
     double max_value = 0;
@@ -316,7 +277,7 @@ int FindBestBerthFromVitual(int boat_index)
                     time_second = 0;
                     if (tmp.empty())
                     { // 说明之前的全部装完了，装我估算的
-                        time_second += ((BoatCapacity - loaded_goods_num) / Berths[i].loading_speed);
+                        time_second += ((BoatCapacity - loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed);
                         berth_all_value += ((BoatCapacity - loaded_goods_num) * 100);
                     }
                 }
@@ -336,10 +297,12 @@ int FindBestBerthFromVitual(int boat_index)
 int FindBestBerthOrGoFromBerth(int boat_index)
 {
     int best_berth_or_go = -2;
+    int best_berth = -2;
     double max_value = 0;
+    double berth_value = 0;
     // 先判断运走的价值（直接去虚拟点）?
     double go_value = (double)Boats[boat_index].goods_value / VirtualToBerthTime[Boats[boat_index].pos];
-    if (go_value > max_value)
+    if (go_value > max_value /*&& Boats[boat_index].goods_num >= 0.7 * BoatCapacity*/)
     {
         max_value = go_value;
         best_berth_or_go = -1;
@@ -357,6 +320,11 @@ int FindBestBerthOrGoFromBerth(int boat_index)
                 max_value = stay_value;
                 best_berth_or_go = i;
             }
+            if (stay_value > berth_value)
+            {
+                berth_value = stay_value;
+                best_berth = i;
+            }
         }
         if (Berths[i].boat_num == 0)
         { // 只考虑没有船在或者要去的港口
@@ -369,9 +337,9 @@ int FindBestBerthOrGoFromBerth(int boat_index)
                 // 模拟该船装货物
                 int time_first = 0;
                 double time_second = 0;
-                if (Berths[i].goods_queue.size() + add_goods_num < BoatCapacity - Boats[boat_index].goods_num)
+                if ((int)Berths[i].goods_queue.size() + add_goods_num < BoatCapacity - Boats[boat_index].goods_num)
                 { // 如果货很少，就全装走
-                    time_first = (Berths[i].goods_queue.size() + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
+                    time_first = ((int)Berths[i].goods_queue.size() + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
                     time_second = add_goods_num / Berths[i].loading_speed;
                     // 先加已有的总价值
                     queue<int> tmp = Berths[i].goods_queue;
@@ -401,7 +369,7 @@ int FindBestBerthOrGoFromBerth(int boat_index)
                     time_second = 0;
                     if (tmp.empty())
                     { // 说明之前的全部装完了，装我估算的
-                        time_second += ((BoatCapacity - Boats[boat_index].goods_num - loaded_goods_num) / Berths[i].loading_speed);
+                        time_second += ((BoatCapacity - Boats[boat_index].goods_num - loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed);
                         berth_all_value += ((BoatCapacity - Boats[boat_index].goods_num - loaded_goods_num) * 100);
                     }
                 }
@@ -412,10 +380,15 @@ int FindBestBerthOrGoFromBerth(int boat_index)
                     max_value = berth_all_value;
                     best_berth_or_go = i;
                 }
+                if (berth_all_value > berth_value)
+                {
+                    berth_value = berth_all_value;
+                    best_berth = i;
+                }
             }
         }
     }
-    return best_berth_or_go;
+    return Berths[Boats[boat_index].pos].transport_time * 3 <= 15000 - Frame ? best_berth_or_go : best_berth;
 }
 
 // 船的调度
@@ -439,7 +412,7 @@ void BoatDispatch()
                 Boats[i].goods_num = 0;
                 Boats[i].goods_value = 0;
                 // 找港口
-                int best_berth = FindBestBerthFromVitual(i);
+                int best_berth = FindBestBerthFromVirtual(i);
                 if (best_berth != -1)
                 {
                     Boats[i].real_dest = best_berth;
@@ -449,7 +422,7 @@ void BoatDispatch()
             }
             else
             { // 船在港口
-                if (VirtualToBerthTime[Boats[i].pos] >= 15000 - Frame - 1)
+                if (VirtualToBerthTime[Boats[i].pos] >= 15000 - Frame)
                 {
                     BoatToVirtual(i);
                     continue;
@@ -595,7 +568,7 @@ void JudgeRobotsLife()
     }
 }
 
-void VitualToBerth()
+void VirtualToBerth()
 {
     // 虚拟点到港口（港口到虚拟点）
     for (int bi = 0; bi < BERTH_NUM; bi++)
@@ -679,7 +652,7 @@ void Init()
     JudgeRobotsLife();
 
     // 记录虚拟点到泊点之间的最短路径
-    VitualToBerth();
+    VirtualToBerth();
 
     // ok
     printf("OK\n");
@@ -1467,11 +1440,13 @@ void PrintBerthGoodsInfo(ofstream & out_file)
 void PrintBoatInfo(ofstream & out_file)
 {
     out_file << "------Boat Info------" << endl;
+    out_file << "Boat Capacity: " << BoatCapacity << endl;
     for (int i = 0; i < BOAT_NUM; i++)
     {
         out_file << "Boat " << i << "'s status is "<< Boats[i].status << \
                                     ", is at "<< Boats[i].pos << \
-                                    ", is going to real_dest " << Boats[i].real_dest << endl;
+                                    ", is going to real_dest " << Boats[i].real_dest << \
+                                    ", have goods_num " << Boats[i].goods_num << endl;
     }
 }
 
@@ -1484,7 +1459,7 @@ void Print(ofstream & out_file, int interval)
 
     if (out_file.is_open())
     {
-        out_file << "Frame: " << Frame << endl;
+        out_file << "------------Frame: " << Frame << "------------" << endl;
         PrintMoney(out_file);
         PrintBerthGoodsInfo(out_file);
         PrintBoatInfo(out_file);
@@ -1500,21 +1475,28 @@ string GetTimeString()
     struct tm* localTime = localtime(&currentTime);
     // 将时间转换为字符串形式
     char time_string[100]; // 用于存储时间的字符数组
-    strftime(time_string, sizeof(time_string), "%Y-%m-%d %H:%M:%S", localTime); // 格式化时间字符串time
+    strftime(time_string, sizeof(time_string), "%Y-%m-%d-%H-%M-%S", localTime); // 格式化时间字符串time
 
     return {time_string};
+}
+
+ofstream CreateFile()
+{
+    string time_string = GetTimeString();
+    ofstream out_file(string("./output/output") + time_string + ".txt", ios::app); // 打开文件 output.txt，如果不存在则创建
+
+    return out_file;
 }
 
 int main()
 {
     Init();
 
-    string time_string = GetTimeString();
-    ofstream out_file(string("./output/output") + time_string + ".txt", ios::app); // 打开文件 output.txt，如果不存在则创建
+//    ofstream out_file = CreateFile();
 
     for (int frame = 1; frame <= 15000; frame++)
     {
-        Print(out_file, 50);
+//        Print(out_file, 50);
         Input();
         RobotDsipatchGreedy();
         AvoidCollision();
@@ -1538,7 +1520,7 @@ int main()
         fflush(stdout);
     }
 
-    out_file.close(); // 关闭文件
+//    out_file.close(); // 关闭文件
 
     return 0;
 }
@@ -1560,29 +1542,29 @@ int main()
 //     }
 // };
 
-// // 使用BFS算法找到最好的3个物品,返回物品index、最近港口和下一步方向
+// 使用BFS算法找到最好的3个物品,返回物品index、最近港口和下一步方向
 // vector<Road> ToGoodsBFS(int robot_index, int total_step)
 // {
 //     int robot_x, robot_y; // 机器人的坐标
 //     robot_x = Robots[robot_index].x;
 //     robot_y = Robots[robot_index].y;
-
+//
 //     int visited[N][N] = {0}; // 访问标记数组
 //     queue<pair<int, int>> q; // BFS队列,坐标值
 //     queue<int> direction;    // 用于记录到达每个位置的移动方向
 //     vector<Road> best_goods; // 保存返回的物品
-
+//
 //     q.push({robot_x, robot_y});    // 将机器人初始位置入队
 //     visited[robot_x][robot_y] = 1; // 标记为已访问
 //     direction.push(-1);            // -1表示初始位置，没有实际方向意义
-
+//
 //     int step = 0; // 当前步数
 //     while (!q.empty() && step < total_step)
 //     {
 //         int min_val = 201; // 当前最小价值
 //         int mid_val;       // 第二小价值
 //         int max_val = 0;   // 当前最大价值
-
+//
 //         int size = q.size();
 //         step++;
 //         for (int i = 0; i < size; ++i)
@@ -1591,7 +1573,7 @@ int main()
 //             q.pop();
 //             int dir = direction.front();
 //             direction.pop();
-
+//
 //             if (World[x][y] - 100 >= 0 && step <= AllGoods[World[x][y] - 100].refresh_frame)
 //             { // 找到物品
 //                 int berth_index;
@@ -1649,12 +1631,12 @@ int main()
 //                     }
 //                 }
 //             }
-
+//
 //             for (int d = 0; d < 4; ++d)
 //             { // 检查四个方向
 //                 int nx = x + DX[d];
 //                 int ny = y + DY[d];
-
+//
 //                 if (IsValid(nx, ny) && !visited[nx][ny])
 //                 {                        // 检查下一步是否可走
 //                     visited[nx][ny] = 1; // 标记已走过
@@ -1784,3 +1766,42 @@ int main()
 //         }
 //     }
 // }
+
+// 返回泊位上有货物的泊位编号
+//set<int> BusyBerth()
+//{
+//    set<int> busy_berth;
+//    for (int i = 0; i < BERTH_NUM; i++)
+//    {
+//        if (Berths[i].boat_num > 0)
+//        {
+//            busy_berth.insert(i);
+//        }
+//    }
+//    return busy_berth;
+//}
+
+// 返回最佳泊位编号
+//int FindBestBerth(set<int> busy_berth)
+//{
+//    double value_time = 0;
+//    int berth_tmp = -1;
+//    for (int i = 0; i < BERTH_NUM; i++)
+//    {
+//        if (Berths[i].goods_queue.empty()) // 泊位上没有货物
+//        {
+//            continue;
+//        }
+//        else if (busy_berth.find(i) == busy_berth.end()) // 泊位是空闲的
+//        {
+//            int load_time = (int)Berths[i].goods_queue.size() / Berths[i].loading_speed;
+//            double value_time_tmp = (double)Berths[i].sum_goods_value() / (load_time + Berths[i].transport_time * 2);
+//            if (value_time_tmp > value_time)
+//            {
+//                value_time = value_time_tmp;
+//                berth_tmp = i;
+//            }
+//        }
+//    }
+//    return berth_tmp;
+//}
