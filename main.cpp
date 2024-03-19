@@ -1466,7 +1466,7 @@ string GetTimeString()
     struct tm* localTime = localtime(&currentTime);
     // 将时间转换为字符串形式
     char time_string[100]; // 用于存储时间的字符数组
-    strftime(time_string, sizeof(time_string), "%Y-%m-%d %H:%M:%S", localTime); // 格式化时间字符串time
+    strftime(time_string, sizeof(time_string), "%Y-%m-%d-%H-%M-%S", localTime); // 格式化时间字符串time
 
     return {time_string};
 }
