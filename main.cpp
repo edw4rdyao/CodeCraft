@@ -255,8 +255,8 @@ void BoatToVirtual(int boat_index)
     else
     { // 如果要中转，就去中转站，然后记录真正的目的地（虚拟点）
         printf("ship %d %d\n", boat_index, VirtualToBerthTransit[Boats[boat_index].pos]);
-        Boats[boat_index].real_dest = -1;
     }
+    Boats[boat_index].real_dest = -1;
     Berths[Boats[boat_index].pos].boat_num--; // 港口的真正的船数量减一
 }
 
@@ -269,7 +269,7 @@ int FindBestBerthFromVitual(int boat_index)
         if (Berths[i].boat_num == 0)
         { // 只考虑没有船在或者要去的港口
             int to_time = VirtualToBerthTime[i];
-            if (to_time * 2 > 15000 - Frame)
+            if (to_time * 2 < 15000 - Frame)
             { // 确保其过去之后可以回来
                 // 估算过去之后货物增加的数量
                 double add_goods_num = (double)Berths[i].total_goods_num / (double)Frame * (double)to_time;
@@ -354,7 +354,7 @@ int FindBestBerthOrGoFromBerth(int boat_index)
         if (Berths[i].boat_num == 0)
         { // 只考虑没有船在或者要去的港口
             int to_time = BERTH_TRAN_LEN;
-            if (to_time + VirtualToBerthTime[i] > 15000 - Frame)
+            if (to_time + VirtualToBerthTime[i] < 15000 - Frame)
             { // 确保其过去之后可以返回虚拟点
                 // 估算过去之后货物增加的数量
                 double add_goods_num = (double)Berths[i].total_goods_num / (double)Frame * (double)to_time;
@@ -433,11 +433,12 @@ void BoatDispatch()
                 {
                     Boats[i].real_dest = best_berth;
                     printf("ship %d %d\n", i, VirtualToBerthTransit[best_berth]);
+                    Berths[best_berth].boat_num++;
                 }
             }
             else
             { // 船在港口
-                if (VirtualToBerthTime[Boats[i].pos] >= 15000 - Frame -1)
+                if (VirtualToBerthTime[Boats[i].pos] >= 15000 - Frame - 1)
                 {
                     BoatToVirtual(i);
                     continue;
@@ -467,42 +468,14 @@ void BoatDispatch()
                     {
                         BoatToVirtual(i);
                     }
-                    else if (best_berth_or_go == Boats[i].pos)
-                    {
-                    }
-                    else
+                    else if (best_berth_or_go >= 0 && best_berth_or_go != Boats[i].pos)
                     {
                         Berths[Boats[i].pos].boat_num--;
                         Berths[best_berth_or_go].boat_num++;
                         Boats[i].real_dest = best_berth_or_go;
                         printf("ship %d %d\n", i, best_berth_or_go);
-                    }
-                }
-            
-                // if (Berths[Boats[i].pos].transport_time >= 15000 - Frame)
-                // { // 最后时刻，运输到虚拟点得到钱的时间要大于等于剩下的时间了，必须走
-                //     printf("go %d\n", i);
-                //     // 更新状态
-                //     Berths[Boats[i].pos].boat_num--;
-                // }
-                // else
-                // { // 还在装货 TODO：考虑港口之间的移动）？如果港口上还有货，应该是需要继续装的，没货再判断机器人那个？
-                //     int min_distance = MAX_LENGTH;
-                //     for (int j = 0; j < ROBOT_NUM; j++)
-                //         if (Robots[j].berth_index == Boats[i].pos && Robots[j].is_goods == 1) // 机器人锁定港口且带货
-                //         {
-                //             int distance = BerthPathLenth[Robots[j].berth_index][Robots[j].x][Robots[j].y];
-                //             if (distance < min_distance)
-                //             {
-                //                 min_distance = distance;
-                //             }
-                //         }
-                //     if (min_distance > Berths[Boats[i].pos].transport_time) // 没有机器人锁定港口且带货
-                //     {
-                //         printf("go %d\n", i);
-                //         Berths[Boats[i].pos].boat_num--;
-                //     }
-                // }
+                    } // 剩下的正常装货
+                }// 剩下的正常装货
             }
         }
         else if (Boats[i].status == 2)
@@ -694,7 +667,8 @@ void Init()
     // 判断每个机器人和所有港口的可达性（如果都不可达则被困死）
     JudgeRobotsLife();
 
-    // TODO：记录虚拟点到泊点之间的最短路径
+    // 记录虚拟点到泊点之间的最短路径
+    VitualToBerth();
 
     // ok
     printf("OK\n");
@@ -1381,11 +1355,13 @@ void AvoidCollision()
                                         }
                                     }
                                 }
-                                else if (is_collision_robot[ri]){ // 只有我有冲突过
+                                else if (is_collision_robot[ri])
+                                { // 只有我有冲突过
                                     Robots[rj].dir = -1;
                                     is_collision_robot[rj] = true;
                                 }
-                                else{ // 只有他有冲突过
+                                else
+                                { // 只有他有冲突过
                                     Robots[ri].dir = -1;
                                     is_collision_robot[ri] = true;
                                 }
