@@ -1462,7 +1462,7 @@ void PrintBoatInfo(ofstream & out_file)
     {
         out_file << "Boat " << i << "'s status is "<< Boats[i].status << \
                                     ", is at "<< Boats[i].pos << \
-                                    ", is going to real_dest" << Boats[i].real_dest << endl;
+                                    ", is going to real_dest " << Boats[i].real_dest << endl;
     }
 }
 
@@ -1475,6 +1475,7 @@ void Print(ofstream & out_file, int interval)
 
     if (out_file.is_open())
     {
+        out_file << "Frame: " << Frame << endl;
         PrintMoney(out_file);
         PrintBerthGoodsInfo(out_file);
         PrintBoatInfo(out_file);
