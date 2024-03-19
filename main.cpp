@@ -1,5 +1,9 @@
 #ifdef _WIN32
 #include <bits/stdc++.h>
+
+#include <iostream>
+#include <fstream>
+
 #else
 #include <cstdlib>
 #include <queue>
@@ -33,6 +37,8 @@ int Money, BoatCapacity, Frame;      // 金钱，船的容量，当前帧数
 int World[N][N];                     // 地图
 int BerthPath[BERTH_NUM][N][N];      // 泊位到每个点的最短路径(0: 上，1: 下，2: 左，3: 右)
 int BerthPathLenth[BERTH_NUM][N][N]; // 泊位到每个点的最短路径长度
+
+int RobotMoney = 0; // 统计机器人的钱
 
 struct Goods
 {
@@ -594,6 +600,9 @@ void RobotDsipatchGreedy()
         { // 如果机器人拿着物品就直接找港口
             if (IsInBerth(ri))
             { // 如果到达港口，放下货物，继续找其他货物（?是否需要判断是不是自己要去的港口呢）
+
+                RobotMoney += AllGoods[Robots[ri].goods_index].val;
+
                 Robots[ri].action = 1;
                 Berths[Robots[ri].berth_index].goods_queue.push(Robots[ri].goods_index); // 港口放入货物
                 Robots[ri].goods_index = -1;
@@ -1144,11 +1153,13 @@ void AvoidCollision()
                                         }
                                     }
                                 }
-                                else if (is_collision_robot[ri]){ // 只有我有冲突过
+                                else if (is_collision_robot[ri])
+                                { // 只有我有冲突过
                                     Robots[rj].dir = -1;
                                     is_collision_robot[rj] = true;
                                 }
-                                else{ // 只有他有冲突过
+                                else
+                                { // 只有他有冲突过
                                     Robots[ri].dir = -1;
                                     is_collision_robot[ri] = true;
                                 }
@@ -1219,6 +1230,19 @@ int main()
         PrintRobotsIns();
         BoatDispatch();
         LoadGoods();
+
+        if (frame == 15000)
+        {
+            FILE *file;
+            file = fopen("output_money.txt", "w");
+            // 将用户输入的内容写入文件
+            if (file != NULL)
+            {
+                fprintf(file, "%d", RobotMoney);
+                fclose(file);
+            }
+        }
+
         puts("OK");
         fflush(stdout);
     }
