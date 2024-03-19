@@ -8,7 +8,6 @@
 #include <set>
 #include <random>
 #include <cstring>
-#include <cstdlib> // 包含 rand() 和 srand()
 #include <ctime>   // 包含 time()
 #include <fstream>
 #endif
@@ -24,7 +23,7 @@ const int MAX_LENGTH = 80000;
 const int BERTH_TRAN_LEN = 500;
 
 const int MAX_ROAD_NUM = 50;
-const int MAX_ROAD_LEN = 300;
+const int MAX_ROAD_LEN = 250; // 300
 
 const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
@@ -171,7 +170,8 @@ set<int> BusyBerth()
     return busy_berth;
 }
 
-int FindBestBerth(set<int> busy_berth) // 返回最佳泊位编号
+// 返回最佳泊位编号
+int FindBestBerth(set<int> busy_berth)
 {
     double value_time = 0;
     int berth_tmp = -1;
@@ -330,10 +330,12 @@ int FindBestBerthFromVitual(int boat_index)
 int FindBestBerthOrGoFromBerth(int boat_index)
 {
     int best_berth_or_go = -2;
+    int best_berth = -2;
     double max_value = 0;
+    double berth_value = 0;
     // 先判断运走的价值（直接去虚拟点）?
     double go_value = (double)Boats[boat_index].goods_value / VirtualToBerthTime[Boats[boat_index].pos];
-    if (go_value > max_value)
+    if (go_value > max_value /*&& Boats[boat_index].goods_num >= 0.7 * BoatCapacity*/)
     {
         max_value = go_value;
         best_berth_or_go = -1;
@@ -350,6 +352,11 @@ int FindBestBerthOrGoFromBerth(int boat_index)
             {
                 max_value = stay_value;
                 best_berth_or_go = i;
+            }
+            if (stay_value > berth_value)
+            {
+                berth_value = stay_value;
+                best_berth = i;
             }
         }
         if (Berths[i].boat_num == 0)
@@ -406,10 +413,15 @@ int FindBestBerthOrGoFromBerth(int boat_index)
                     max_value = berth_all_value;
                     best_berth_or_go = i;
                 }
+                if (berth_all_value > berth_value)
+                {
+                    berth_value = berth_all_value;
+                    best_berth = i;
+                }
             }
         }
     }
-    return best_berth_or_go;
+    return Berths[Boats[boat_index].pos].transport_time * 3 <= 15000 - Frame ? best_berth_or_go : best_berth;
 }
 
 // 船的调度
@@ -443,7 +455,7 @@ void BoatDispatch()
             }
             else
             { // 船在港口
-                if (VirtualToBerthTime[Boats[i].pos] >= 15000 - Frame - 1)
+                if (VirtualToBerthTime[Boats[i].pos] >= 15000 - Frame)
                 {
                     BoatToVirtual(i);
                     continue;
@@ -1458,11 +1470,13 @@ void PrintBerthGoodsInfo(ofstream & out_file)
 void PrintBoatInfo(ofstream & out_file)
 {
     out_file << "------Boat Info------" << endl;
+    out_file << "Boat Capacity: " << BoatCapacity << endl;
     for (int i = 0; i < BOAT_NUM; i++)
     {
         out_file << "Boat " << i << "'s status is "<< Boats[i].status << \
                                     ", is at "<< Boats[i].pos << \
-                                    ", is going to real_dest " << Boats[i].real_dest << endl;
+                                    ", is going to real_dest " << Boats[i].real_dest << \
+                                    ", have goods_num " << Boats[i].goods_num << endl;
     }
 }
 
@@ -1475,7 +1489,7 @@ void Print(ofstream & out_file, int interval)
 
     if (out_file.is_open())
     {
-        out_file << "Frame: " << Frame << endl;
+        out_file << "------------Frame: " << Frame << "------------" << endl;
         PrintMoney(out_file);
         PrintBerthGoodsInfo(out_file);
         PrintBoatInfo(out_file);
@@ -1496,12 +1510,19 @@ string GetTimeString()
     return {time_string};
 }
 
+ofstream & CreateFile()
+{
+    string time_string = GetTimeString();
+    ofstream out_file(string("./output/output") + time_string + ".txt", ios::app); // 打开文件 output.txt，如果不存在则创建
+
+    return out_file;
+}
+
 int main()
 {
     Init();
 
-    string time_string = GetTimeString();
-    ofstream out_file(string("./output/output") + time_string + ".txt", ios::app); // 打开文件 output.txt，如果不存在则创建
+    ofstream & out_file = CreateFile();
 
     for (int frame = 1; frame <= 15000; frame++)
     {
