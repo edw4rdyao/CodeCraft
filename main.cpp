@@ -1478,13 +1478,12 @@ void Print(ofstream & out_file, int interval)
         PrintMoney(out_file);
         PrintBerthGoodsInfo(out_file);
         PrintBoatInfo(out_file);
-        out_file.close(); // 关闭文件
     } else
     {
     }
 }
 
-ofstream CreateFile()
+string GetTimeString()
 {
     // 获得现在的时间
     time_t currentTime = time(nullptr);
@@ -1492,16 +1491,16 @@ ofstream CreateFile()
     // 将时间转换为字符串形式
     char time_string[100]; // 用于存储时间的字符数组
     strftime(time_string, sizeof(time_string), "%Y-%m-%d %H:%M:%S", localTime); // 格式化时间字符串time
-    ofstream out_file(string("./output/output") + time_string + ".txt", ios::app); // 打开文件 output.txt，如果不存在则创建
 
-    return out_file;
+    return {time_string};
 }
 
 int main()
 {
     Init();
 
-    ofstream out_file = CreateFile();
+    string time_string = GetTimeString();
+    ofstream out_file(string("./output/output") + time_string + ".txt", ios::app); // 打开文件 output.txt，如果不存在则创建
 
     for (int frame = 1; frame <= 15000; frame++)
     {
@@ -1515,6 +1514,8 @@ int main()
         puts("OK");
         fflush(stdout);
     }
+
+    out_file.close(); // 关闭文件
 
     return 0;
 }
