@@ -1,7 +1,6 @@
 #ifdef _WIN32
 #include <bits/stdc++.h>
 #else
-#include <cstdlib>
 #include <queue>
 #include <vector>
 #include <cstdio>
@@ -11,6 +10,7 @@
 #include <cstring>
 #include <cstdlib> // 包含 rand() 和 srand()
 #include <ctime>   // 包含 time()
+#include <fstream>
 #endif
 
 using namespace std;
@@ -30,6 +30,7 @@ const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
 const int REV_DIR[4] = {1, 0, 3, 2}; // 上下左右的反方向（用于BFS记录路径）：下上右左
 
+int OurMoney = 0; // 我们自己算出来的金钱
 int Money, BoatCapacity, Frame;      // 金钱，船的容量，当前帧数
 int World[N][N];                     // 地图
 int BerthPath[BERTH_NUM][N][N];      // 泊位到每个点的最短路径(0: 上，1: 下，2: 左，3: 右)
@@ -121,7 +122,7 @@ struct Boat
     int pos;            // 船的位置（港口id）（-1: 在虚拟点）
     int status;         // 船的状态（0：移动或运输中，1：装货或运输完成，2:泊位外等待）
     int goods_num;      // 船上货物的数量
-    double goods_value; // 船上已经装了的货物价值
+    int goods_value; // 船上已经装了的货物价值
     int real_dest;      // 真正的目的地
 
     Boat() {}
@@ -423,7 +424,11 @@ void BoatDispatch()
         else if (Boats[i].status == 1)
         { // 船在港口或者虚拟点
             if (Boats[i].pos == -1)
-            { // 船在虚拟点，直接卸货完成，决策好的港口
+            {
+                // 卸货完成，计算总获得的金钱
+                OurMoney += Boats[i].goods_value;
+
+                // 船在虚拟点，直接卸货完成，决策好的港口
                 // 卸货
                 Boats[i].goods_num = 0;
                 Boats[i].goods_value = 0;
@@ -1421,11 +1426,86 @@ void PrintRobotsIns()
     }
 }
 
+// 输出实际金钱与我们自己算的金钱
+void PrintMoney(ofstream & out_file)
+{
+    out_file << "------Money Info------" << endl;
+    out_file << "real_money: " << Money << endl;
+    out_file << "our_money: " << OurMoney << endl;
+}
+
+// 输出每个港口的货物量以及货物总价值
+void PrintBerthGoodsInfo(ofstream & out_file)
+{
+    out_file << "------Berth Info------" << endl;
+    int berth_goods_value[BERTH_NUM] = {};
+    int berth_goods_num[BERTH_NUM] = {};
+    for (int i = 0; i < BERTH_NUM; i++)
+    {
+        for (int j = 0; j < Berths[i].goods_queue.size(); j++)
+        {
+            queue <int> tmp = Berths[i].goods_queue;
+            int goods_index = tmp.front();
+            tmp.pop();
+            berth_goods_value[i] += AllGoods[goods_index].val;
+            berth_goods_num[i]++;
+        }
+        out_file << "Berth " << i << " has " << berth_goods_num[i] << " goods, total value is " << berth_goods_value[i] << endl;
+    }
+}
+
+// 输出每艘船的位置
+void PrintBoatInfo(ofstream & out_file)
+{
+    out_file << "------Boat Info------" << endl;
+    for (int i = 0; i < BOAT_NUM; i++)
+    {
+        out_file << "Boat " << i << "'s status is "<< Boats[i].status << \
+                                    ", is at "<< Boats[i].pos << \
+                                    ", is going to real_dest" << Boats[i].real_dest << endl;
+    }
+}
+
+void Print(ofstream & out_file, int interval)
+{
+    if (Frame % interval != 0)
+    {
+        return;
+    }
+
+    if (out_file.is_open())
+    {
+        PrintMoney(out_file);
+        PrintBerthGoodsInfo(out_file);
+        PrintBoatInfo(out_file);
+        out_file.close(); // 关闭文件
+    } else
+    {
+    }
+}
+
+ofstream CreateFile()
+{
+    // 获得现在的时间
+    time_t currentTime = time(nullptr);
+    struct tm* localTime = localtime(&currentTime);
+    // 将时间转换为字符串形式
+    char time_string[100]; // 用于存储时间的字符数组
+    strftime(time_string, sizeof(time_string), "%Y-%m-%d %H:%M:%S", localTime); // 格式化时间字符串time
+    ofstream out_file(string("./output/output") + time_string + ".txt", ios::app); // 打开文件 output.txt，如果不存在则创建
+
+    return out_file;
+}
+
 int main()
 {
     Init();
+
+    ofstream out_file = CreateFile();
+
     for (int frame = 1; frame <= 15000; frame++)
     {
+        Print(out_file, 50);
         Input();
         RobotDsipatchGreedy();
         AvoidCollision();
@@ -1438,6 +1518,8 @@ int main()
 
     return 0;
 }
+
+
 
 // struct Road // 物品id、最近港口、机器人下一步方向
 // {
