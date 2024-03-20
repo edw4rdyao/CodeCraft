@@ -35,6 +35,8 @@ int World[N][N];                     // 地图
 int BerthPath[BERTH_NUM][N][N];      // 泊位到每个点的最短路径(0: 上，1: 下，2: 左，3: 右)
 int BerthPathLenth[BERTH_NUM][N][N]; // 泊位到每个点的最短路径长度
 
+int MaxVirtualToBerthTime;    // 虚拟点到港口的最大时间
+int MinVirtualToBerthTime;    // 虚拟点到港口的最小时间
 int VirtualToBerthTime[BERTH_NUM];    // 虚拟点到港口的最短时间
 int VirtualToBerthTransit[BERTH_NUM]; // 虚拟点到港口的中转站（如果中转站为本身则不需要中转）
 
@@ -382,7 +384,7 @@ int FindBestBerthOrGoFromBerth(int boat_index)
             }
         }
     }
-    return Berths[Boats[boat_index].pos].transport_time * 3 <= 15000 - Frame ? best_berth_or_go : best_berth;
+    return VirtualToBerthTime[Boats[boat_index].pos] * 3 < 15000 - Frame ? best_berth_or_go : best_berth;
 }
 
 // 船的调度
@@ -413,6 +415,19 @@ void BoatDispatch()
                     printf("ship %d %d\n", i, VirtualToBerthTransit[best_berth]);
                     Berths[best_berth].boat_num++;
                 }
+//                else if (Frame == 100) //第50帧了船还在初始点就赶紧滚
+//                {
+//                    for (int j = 0; j < BERTH_NUM; j++)
+//                    {
+//                        if (Berths[j].boat_num == 0)
+//                        {
+//                            Boats[i].real_dest = j;
+//                            printf("ship %d %d\n", i, VirtualToBerthTransit[j]);
+//                            Berths[j].boat_num++;
+//                            break; //这个是退出里循环，但不退出外循环，break还是要慎用的
+//                        }
+//                    }
+//                }
             }
             else
             { // 船在港口
@@ -564,6 +579,8 @@ void JudgeRobotsLife()
 
 void VirtualToBerth()
 {
+    int max_virtual_to_berth_time = 0;
+    int min_virtual_to_berth_time = MAX_LENGTH;
     // 虚拟点到港口（港口到虚拟点）
     for (int bi = 0; bi < BERTH_NUM; bi++)
     {
@@ -577,7 +594,18 @@ void VirtualToBerth()
                 VirtualToBerthTransit[bi] = bj;
             }
         }
+        // 记录最大和最小时间
+        if (VirtualToBerthTime[bi] > max_virtual_to_berth_time)
+        {
+            max_virtual_to_berth_time = VirtualToBerthTime[bi];
+        }
+        if (VirtualToBerthTime[bi] < min_virtual_to_berth_time)
+        {
+            min_virtual_to_berth_time = VirtualToBerthTime[bi];
+        }
     }
+    MaxVirtualToBerthTime = max_virtual_to_berth_time;
+    MinVirtualToBerthTime = min_virtual_to_berth_time;
 }
 
 void Init()
@@ -1484,6 +1512,11 @@ int main()
     Init();
 
 //    ofstream out_file = CreateFile();
+//    // 输出所有的虚拟点到港口时间
+//    for (int i = 0; i < BERTH_NUM; i++)
+//    {
+//        out_file << "Virtual " << i << " to Berth Time: " << VirtualToBerthTime[i] << endl;
+//    }
 
     for (int frame = 1; frame <= 15000; frame++)
     {
