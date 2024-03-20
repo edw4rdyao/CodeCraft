@@ -18,6 +18,7 @@
 
 using namespace std;
 
+const int MAX_FRAME = 15000;
 const int ROBOT_NUM = 10;
 const int BERTH_NUM = 10;
 const int BOAT_NUM = 5;
@@ -268,7 +269,7 @@ int FindBestBerthFromVirtual(int boat_index)
         if (Berths[i].boat_num == 0)
         { // 只考虑没有船在或者要去的港口
             int to_time = VirtualToBerthTime[i];
-            if (to_time * 2 < 15000 - Frame)
+            if (to_time * 2 < MAX_FRAME - Frame)
             { // 确保其过去之后可以回来
                 // 估算过去之后货物增加的数量
                 double add_goods_num = (double)Berths[i].total_goods_num / (double)Frame * (double)to_time;
@@ -360,7 +361,7 @@ int FindBestBerthOrGoFromBerth(int boat_index)
         if (Berths[i].boat_num == 0)
         { // 只考虑没有船在或者要去的港口
             int to_time = BERTH_TRAN_LEN;
-            if (to_time + VirtualToBerthTime[i] < 15000 - Frame)
+            if (to_time + VirtualToBerthTime[i] < MAX_FRAME - Frame)
             { // 确保其过去之后可以返回虚拟点
                 // 估算过去之后货物增加的数量
                 double add_goods_num = (double)Berths[i].total_goods_num / (double)Frame * (double)to_time;
@@ -419,7 +420,7 @@ int FindBestBerthOrGoFromBerth(int boat_index)
             }
         }
     }
-    return VirtualToBerthTime[Boats[boat_index].pos] * 3 < 15000 - Frame ? best_berth_or_go : best_berth;
+    return VirtualToBerthTime[Boats[boat_index].pos] * 3 < MAX_FRAME - Frame ? best_berth_or_go : best_berth;
 }
 
 // 船的调度
@@ -453,7 +454,7 @@ void BoatDispatch()
             }
             else
             { // 船在港口
-                if (VirtualToBerthTime[Boats[i].pos] >= 15000 - Frame)
+                if (VirtualToBerthTime[Boats[i].pos] >= MAX_FRAME - Frame)
                 {
                     BoatToVirtual(i);
                     continue;
@@ -476,7 +477,7 @@ void BoatDispatch()
                     BoatToVirtual(i);
 
                     // 如果在最后关头装满了货，那么出发并且解除该港口的标记
-                    if (BERTH_TRAN_LEN + VirtualToBerthTime[Boats[i].pos] >= 15000 - Frame)
+                    if (BERTH_TRAN_LEN + VirtualToBerthTime[Boats[i].pos] >= MAX_FRAME - Frame)
                     {
                         Berths[Boats[i].pos].is_last = 0;
                     }
@@ -498,7 +499,7 @@ void BoatDispatch()
                         printf("ship %d %d\n", i, best_berth_or_go);
 
                         // 如果在最后关头进行最后一次调度到其他港口的操作，那么给那个港口进行标记
-                        if (2 * BERTH_TRAN_LEN + VirtualToBerthTime[best_berth_or_go] >= 15000 - Frame)
+                        if (2 * BERTH_TRAN_LEN + VirtualToBerthTime[best_berth_or_go] >= MAX_FRAME - Frame)
                         {
                             Berths[best_berth_or_go].is_last = 1;
                         }
@@ -506,7 +507,7 @@ void BoatDispatch()
                     else  // 剩下的正常装货
                     {
                         // 如果在最后关头选择继续留在该港口，那么给这个港口进行标记
-                        if (BERTH_TRAN_LEN + VirtualToBerthTime[best_berth_or_go] >= 15000 - Frame)
+                        if (BERTH_TRAN_LEN + VirtualToBerthTime[best_berth_or_go] >= MAX_FRAME - Frame)
                         {
                             Berths[best_berth_or_go].is_last = 1;
                         }
@@ -1486,8 +1487,35 @@ void PrintBoatInfo(ofstream &out_file)
     }
 }
 
+// 输出机器人所获得的总金额
+void PrintRobotsMoney(ofstream &out_file) {
+    out_file << "------Robot Money------" << endl;
+    out_file << "Robot Money: " << RobotMoney << endl;
+}
+
+// 输出所有的虚拟点到港口时间
+void PrintVirtualToBerthTime(ofstream &out_file)
+{
+    out_file << "------Virtual To Berth Time------" << endl;
+    for (int i = 0; i < BERTH_NUM; i++)
+    {
+        out_file << "Virtual " << i << " to Berth Time: " << VirtualToBerthTime[i] << endl;
+    }
+}
+
+// 输出信息
 void Print(ofstream &out_file, int interval)
 {
+    if (Frame == 1)
+    {
+        PrintVirtualToBerthTime(out_file);
+    }
+
+    if (Frame == MAX_FRAME - 1)
+    {
+        PrintRobotsMoney(out_file);
+    }
+
     if (Frame % interval != 0)
     {
         return;
@@ -1499,9 +1527,6 @@ void Print(ofstream &out_file, int interval)
         PrintMoney(out_file);
         PrintBerthGoodsInfo(out_file);
         PrintBoatInfo(out_file);
-    }
-    else
-    {
     }
 }
 
@@ -1530,13 +1555,8 @@ int main()
     Init();
 
     // ofstream out_file = CreateFile();
-    // // 输出所有的虚拟点到港口时间
-    // for (int i = 0; i < BERTH_NUM; i++)
-    // {
-    //     out_file << "Virtual " << i << " to Berth Time: " << VirtualToBerthTime[i] << endl;
-    // }
 
-    for (int frame = 1; frame <= 15000; frame++)
+    for (int frame = 1; frame <= MAX_FRAME; frame++)
     {
         // Print(out_file, 50);
         Input();
@@ -1545,18 +1565,6 @@ int main()
         PrintRobotsIns();
         BoatDispatch();
         LoadGoods();
-
-        if (frame == 15000)
-        {
-            FILE *file;
-            file = fopen("output_money.txt", "w");
-            // 将用户输入的内容写入文件
-            if (file != NULL)
-            {
-                fprintf(file, "%d", RobotMoney);
-                fclose(file);
-            }
-        }
 
         puts("OK");
         fflush(stdout);
