@@ -12,7 +12,7 @@
 #include <set>
 #include <random>
 #include <cstring>
-#include <ctime>   // 包含 time()
+#include <ctime> // 包含 time()
 #include <fstream>
 #endif
 
@@ -33,14 +33,14 @@ const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
 const int REV_DIR[4] = {1, 0, 3, 2}; // 上下左右的反方向（用于BFS记录路径）：下上右左
 
-int OurMoney = 0; // 我们自己算出来的金钱
+int OurMoney = 0;                    // 我们自己算出来的金钱
 int Money, BoatCapacity, Frame;      // 金钱，船的容量，当前帧数
 int World[N][N];                     // 地图
 int BerthPath[BERTH_NUM][N][N];      // 泊位到每个点的最短路径(0: 上，1: 下，2: 左，3: 右)
 int BerthPathLenth[BERTH_NUM][N][N]; // 泊位到每个点的最短路径长度
 
-int MaxVirtualToBerthTime;    // 虚拟点到港口的最大时间
-int MinVirtualToBerthTime;    // 虚拟点到港口的最小时间
+int MaxVirtualToBerthTime;            // 虚拟点到港口的最大时间
+int MinVirtualToBerthTime;            // 虚拟点到港口的最小时间
 int VirtualToBerthTime[BERTH_NUM];    // 虚拟点到港口的最短时间
 int VirtualToBerthTransit[BERTH_NUM]; // 虚拟点到港口的中转站（如果中转站为本身则不需要中转）
 
@@ -100,6 +100,7 @@ struct Berth
     int boat_num;           // 泊位上的船（正要去这里装货或者正在这里装货）的数量
     queue<int> goods_queue; // 泊位上的货物队列
     int total_goods_num;    // 从第一帧开始，该港口堆积的货物数量（用于估计港口的货物增长速率）
+    int is_last;            // 最后的标记——耶稣(0:无标记；1：有标记)
 
     Berth() {}
     Berth(int x, int y, int transport_time, int loading_speed)
@@ -110,6 +111,7 @@ struct Berth
         this->loading_speed = loading_speed;
         this->boat_num = 0;
         this->total_goods_num = 0;
+        this->is_last = 0;
     }
     int sum_goods_value()
     {
@@ -126,11 +128,11 @@ struct Berth
 
 struct Boat
 {
-    int pos;            // 船的位置（港口id）（-1: 在虚拟点）
-    int status;         // 船的状态（0：移动或运输中，1：装货或运输完成，2:泊位外等待）
-    int goods_num;      // 船上货物的数量
+    int pos;         // 船的位置（港口id）（-1: 在虚拟点）
+    int status;      // 船的状态（0：移动或运输中，1：装货或运输完成，2:泊位外等待）
+    int goods_num;   // 船上货物的数量
     int goods_value; // 船上已经装了的货物价值
-    int real_dest;      // 真正的目的地
+    int real_dest;   // 真正的目的地
 
     Boat() {}
     Boat(int pos, int status)
@@ -202,15 +204,23 @@ double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
     goods_y = AllGoods[goods_index].y;
 
     // 确定最近港口
-    for (int i = 0; i < BERTH_NUM; i++)
-    {
-        int length = BerthPathLenth[i][goods_x][goods_y];
-        if (length >= 0 && length <= to_berth_len)
+    to_berth_index = LastMinBerth(goods_x, goods_y);
+    if (to_berth_index == -1)
+    { // 没标记
+        for (int i = 0; i < BERTH_NUM; i++)
         {
-            to_berth_len = length;
-            to_berth_index = i;
+            int length = BerthPathLenth[i][goods_x][goods_y];
+            if (length >= 0 && length <= to_berth_len)
+            {
+                to_berth_len = length;
+                to_berth_index = i;
+            }
         }
     }
+    else{ //有标记
+        to_berth_len = BerthPathLenth[to_berth_index][goods_x][goods_y];
+    }
+
     double cost_value = (double)goods_value / (step_num + to_berth_len);
     return cost_value;
 }
@@ -421,19 +431,19 @@ void BoatDispatch()
                     printf("ship %d %d\n", i, VirtualToBerthTransit[best_berth]);
                     Berths[best_berth].boat_num++;
                 }
-//                else if (Frame == 100) //第50帧了船还在初始点就赶紧滚
-//                {
-//                    for (int j = 0; j < BERTH_NUM; j++)
-//                    {
-//                        if (Berths[j].boat_num == 0)
-//                        {
-//                            Boats[i].real_dest = j;
-//                            printf("ship %d %d\n", i, VirtualToBerthTransit[j]);
-//                            Berths[j].boat_num++;
-//                            break; //这个是退出里循环，但不退出外循环，break还是要慎用的
-//                        }
-//                    }
-//                }
+                //                else if (Frame == 100) //第50帧了船还在初始点就赶紧滚
+                //                {
+                //                    for (int j = 0; j < BERTH_NUM; j++)
+                //                    {
+                //                        if (Berths[j].boat_num == 0)
+                //                        {
+                //                            Boats[i].real_dest = j;
+                //                            printf("ship %d %d\n", i, VirtualToBerthTransit[j]);
+                //                            Berths[j].boat_num++;
+                //                            break; //这个是退出里循环，但不退出外循环，break还是要慎用的
+                //                        }
+                //                    }
+                //                }
             }
             else
             { // 船在港口
@@ -474,7 +484,7 @@ void BoatDispatch()
                         Boats[i].real_dest = best_berth_or_go;
                         printf("ship %d %d\n", i, best_berth_or_go);
                     } // 剩下的正常装货
-                }// 剩下的正常装货
+                }     // 剩下的正常装货
             }
         }
         else if (Boats[i].status == 2)
@@ -768,6 +778,25 @@ bool GetGoodsRobotsCompair(int ri, int rj)
     }
 }
 
+// 找到所标记港口中的最短距离港口
+int LastMinBerth(int x, int y)
+{
+    int min_berth = -1; // 最短标记港口；无标记就返回-1
+    int min_len = MAX_LENGTH;
+    for (int i = 0; i < BERTH_NUM; i++)
+    {
+        if (Berths[i].is_last == 1)
+        {
+            if (BerthPathLenth[i][x][y] < min_len)
+            {
+                min_len = BerthPathLenth[i][x][y];
+                min_berth = i;
+            }
+        }
+    }
+    return min_berth;
+}
+
 struct Road
 {
     int robot_index; // 路径对应的机器人id
@@ -829,9 +858,22 @@ void RobotDsipatchGreedy()
             }
             else
             { // 没到港口，沿着图走
-                robot_match_num++;
-                robots_match[ri] = 1;
-                Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y];
+                int berth_id = LastMinBerth(Robots[ri].x, Robots[ri].y);
+                if (berth_id == -1)
+                { // 没标记
+                    robot_match_num++;
+                    robots_match[ri] = 1;
+                    Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y];
+                }
+                else
+                { // 有标记
+                    robot_match_num++;
+                    robots_match[ri] = 1;
+                    Robots[ri].berth_index = berth_id;                                                // 重置要去港口号
+                    Robots[ri].goods_distance = BerthPathLenth[berth_id][Robots[ri].x][Robots[ri].y]; // 重置机器人路程
+                    Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y];   // 重置机器人方向
+                }
+
                 continue;
             }
         }
@@ -1437,7 +1479,7 @@ void PrintRobotsIns()
 }
 
 // 输出实际金钱与我们自己算的金钱
-void PrintMoney(ofstream & out_file)
+void PrintMoney(ofstream &out_file)
 {
     out_file << "------Money Info------" << endl;
     out_file << "real_money: " << Money << endl;
@@ -1445,7 +1487,7 @@ void PrintMoney(ofstream & out_file)
 }
 
 // 输出每个港口的货物量以及货物总价值
-void PrintBerthGoodsInfo(ofstream & out_file)
+void PrintBerthGoodsInfo(ofstream &out_file)
 {
     out_file << "------Berth Info------" << endl;
     int berth_goods_value[BERTH_NUM] = {};
@@ -1454,7 +1496,7 @@ void PrintBerthGoodsInfo(ofstream & out_file)
     {
         for (int j = 0; j < Berths[i].goods_queue.size(); j++)
         {
-            queue <int> tmp = Berths[i].goods_queue;
+            queue<int> tmp = Berths[i].goods_queue;
             int goods_index = tmp.front();
             tmp.pop();
             berth_goods_value[i] += AllGoods[goods_index].val;
@@ -1465,20 +1507,17 @@ void PrintBerthGoodsInfo(ofstream & out_file)
 }
 
 // 输出每艘船的位置
-void PrintBoatInfo(ofstream & out_file)
+void PrintBoatInfo(ofstream &out_file)
 {
     out_file << "------Boat Info------" << endl;
     out_file << "Boat Capacity: " << BoatCapacity << endl;
     for (int i = 0; i < BOAT_NUM; i++)
     {
-        out_file << "Boat " << i << "'s status is "<< Boats[i].status << \
-                                    ", is at "<< Boats[i].pos << \
-                                    ", is going to real_dest " << Boats[i].real_dest << \
-                                    ", have goods_num " << Boats[i].goods_num << endl;
+        out_file << "Boat " << i << "'s status is " << Boats[i].status << ", is at " << Boats[i].pos << ", is going to real_dest " << Boats[i].real_dest << ", have goods_num " << Boats[i].goods_num << endl;
     }
 }
 
-void Print(ofstream & out_file, int interval)
+void Print(ofstream &out_file, int interval)
 {
     if (Frame % interval != 0)
     {
@@ -1491,7 +1530,8 @@ void Print(ofstream & out_file, int interval)
         PrintMoney(out_file);
         PrintBerthGoodsInfo(out_file);
         PrintBoatInfo(out_file);
-    } else
+    }
+    else
     {
     }
 }
@@ -1500,9 +1540,9 @@ string GetTimeString()
 {
     // 获得现在的时间
     time_t currentTime = time(nullptr);
-    struct tm* localTime = localtime(&currentTime);
+    struct tm *localTime = localtime(&currentTime);
     // 将时间转换为字符串形式
-    char time_string[100]; // 用于存储时间的字符数组
+    char time_string[100];                                                      // 用于存储时间的字符数组
     strftime(time_string, sizeof(time_string), "%Y-%m-%d-%H-%M-%S", localTime); // 格式化时间字符串time
 
     return {time_string};
@@ -1520,16 +1560,16 @@ int main()
 {
     Init();
 
-//    ofstream out_file = CreateFile();
-//    // 输出所有的虚拟点到港口时间
-//    for (int i = 0; i < BERTH_NUM; i++)
-//    {
-//        out_file << "Virtual " << i << " to Berth Time: " << VirtualToBerthTime[i] << endl;
-//    }
+    //    ofstream out_file = CreateFile();
+    //    // 输出所有的虚拟点到港口时间
+    //    for (int i = 0; i < BERTH_NUM; i++)
+    //    {
+    //        out_file << "Virtual " << i << " to Berth Time: " << VirtualToBerthTime[i] << endl;
+    //    }
 
     for (int frame = 1; frame <= 15000; frame++)
     {
-//        Print(out_file, 50);
+        //        Print(out_file, 50);
         Input();
         RobotDsipatchGreedy();
         AvoidCollision();
@@ -1553,12 +1593,10 @@ int main()
         fflush(stdout);
     }
 
-//    out_file.close(); // 关闭文件
+    //    out_file.close(); // 关闭文件
 
     return 0;
 }
-
-
 
 // struct Road // 物品id、最近港口、机器人下一步方向
 // {
@@ -1801,7 +1839,7 @@ int main()
 // }
 
 // 返回泊位上有货物的泊位编号
-//set<int> BusyBerth()
+// set<int> BusyBerth()
 //{
 //    set<int> busy_berth;
 //    for (int i = 0; i < BERTH_NUM; i++)
@@ -1815,7 +1853,7 @@ int main()
 //}
 
 // 返回最佳泊位编号
-//int FindBestBerth(set<int> busy_berth)
+// int FindBestBerth(set<int> busy_berth)
 //{
 //    double value_time = 0;
 //    int berth_tmp = -1;
