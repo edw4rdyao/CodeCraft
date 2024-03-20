@@ -202,7 +202,7 @@ int LastMinBerth(int x, int y)
     {
         if (Berths[i].is_last == 1)
         {
-            if (BerthPathLenth[i][x][y] < min_len)
+            if (BerthPathLenth[i][x][y] >= 0 && BerthPathLenth[i][x][y] < min_len)
             {
                 min_len = BerthPathLenth[i][x][y];
                 min_berth = i;
@@ -236,7 +236,8 @@ double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
             }
         }
     }
-    else{ //有标记
+    else
+    { // 有标记
         to_berth_len = BerthPathLenth[to_berth_index][goods_x][goods_y];
     }
 
@@ -276,42 +277,74 @@ int FindBestBerthFromVirtual(int boat_index)
                 // 模拟该船装货物
                 int time_first = 0;
                 double time_second = 0;
-                if (Berths[i].goods_queue.size() + add_goods_num < BoatCapacity)
-                { // 如果货很少，就全装走
-                    time_first = (Berths[i].goods_queue.size() + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
-                    time_second = add_goods_num / Berths[i].loading_speed;
-                    // 先加已有的总价值
-                    queue<int> tmp = Berths[i].goods_queue;
-                    while (!tmp.empty())
-                    {
-                        berth_all_value += AllGoods[tmp.front()].val;
-                        tmp.pop();
+                int rest_load_time = 15000 - Frame - to_time * 2; // 最多能给你多少时间装货
+                bool time_out = false;                            // 是否超过了能装货的最短时间
+                int loaded_goods_num = 0;                         // 已经装了的货数量
+
+                queue<int> tmp = Berths[i].goods_queue;
+                while (!tmp.empty())
+                { // 先装已有的货，并且更新已经用了的时间
+                    if (time_first >= rest_load_time)
+                    { // 超时了，就记录一下，并且不装了
+                        time_out = true;
+                        break;
                     }
-                    // 再加估算的价值
-                    berth_all_value += (add_goods_num * 100);
-                }
-                else
-                { // 如果已有的货物量大于容量，则装满
-                    int loaded_goods_num = 0;
-                    queue<int> tmp = Berths[i].goods_queue;
-                    while (!tmp.empty())
-                    {
-                        berth_all_value += AllGoods[tmp.front()].val;
-                        tmp.pop();
-                        loaded_goods_num++;
-                        if (loaded_goods_num >= BoatCapacity)
-                        { // 已经装满了
-                            break;
-                        }
-                    }
+                    loaded_goods_num++; // 装一个货
                     time_first = (loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
-                    time_second = 0;
-                    if (tmp.empty())
-                    { // 说明之前的全部装完了，装我估算的
-                        time_second += ((BoatCapacity - loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed);
-                        berth_all_value += ((BoatCapacity - loaded_goods_num) * 100);
+                    berth_all_value += AllGoods[tmp.front()].val;
+                    tmp.pop();
+                    if (loaded_goods_num >= BoatCapacity)
+                    { // 已经装满了，就不装了
+                        break;
                     }
                 }
+
+                if (loaded_goods_num < BoatCapacity && !time_out)
+                { // 没有装满并且还有时间装（那就装预计增加的，装多少取决于剩余时间内能装的，多少容量以及还有多少货，三者中的最小值）
+                    double load_num_again = min(rest_load_time * Berths[i].loading_speed, BoatCapacity - loaded_goods_num);
+                    load_num_again = min(load_num_again, add_goods_num);
+                    // 这些货的价值和时间
+                    time_second += (load_num_again / Berths[i].loading_speed);
+                    berth_all_value += (load_num_again * 100.0);
+                }
+
+                // if (Berths[i].goods_queue.size() + add_goods_num < BoatCapacity)
+                // { // 如果货很少，就全装走
+                //     time_first = (Berths[i].goods_queue.size() + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
+                //     time_second = add_goods_num / Berths[i].loading_speed;
+                //     // 先加已有的总价值
+                //     queue<int> tmp = Berths[i].goods_queue;
+                //     while (!tmp.empty())
+                //     {
+                //         berth_all_value += AllGoods[tmp.front()].val;
+                //         tmp.pop();
+                //     }
+                //     // 再加估算的价值
+                //     berth_all_value += (add_goods_num * 100);
+                // }
+                // else
+                // { // 如果已有的货物量大于容量，则装满
+                //     int loaded_goods_num = 0;
+                //     queue<int> tmp = Berths[i].goods_queue;
+                //     while (!tmp.empty())
+                //     {
+                //         berth_all_value += AllGoods[tmp.front()].val;
+                //         tmp.pop();
+                //         loaded_goods_num++;
+                //         if (loaded_goods_num >= BoatCapacity)
+                //         { // 已经装满了
+                //             break;
+                //         }
+                //     }
+                //     time_first = (loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
+                //     time_second = 0;
+                //     if (tmp.empty())
+                //     { // 说明之前的全部装完了，装我估算的
+                //         time_second += ((BoatCapacity - loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed);
+                //         berth_all_value += ((BoatCapacity - loaded_goods_num) * 100);
+                //     }
+                // }
+
                 // 计算性价比
                 berth_all_value /= (to_time * 2 + time_first + time_second);
                 if (berth_all_value > max_value)
@@ -365,45 +398,80 @@ int FindBestBerthOrGoFromBerth(int boat_index)
                 // 估算过去之后货物增加的数量
                 double add_goods_num = (double)Berths[i].total_goods_num / (double)Frame * (double)to_time;
                 double berth_all_value = 0;
+
                 // 模拟该船装货物
                 int time_first = 0;
                 double time_second = 0;
-                if ((int)Berths[i].goods_queue.size() + add_goods_num < BoatCapacity - Boats[boat_index].goods_num)
-                { // 如果货很少，就全装走
-                    time_first = ((int)Berths[i].goods_queue.size() + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
-                    time_second = add_goods_num / Berths[i].loading_speed;
-                    // 先加已有的总价值
-                    queue<int> tmp = Berths[i].goods_queue;
-                    while (!tmp.empty())
-                    {
-                        berth_all_value += AllGoods[tmp.front()].val;
-                        tmp.pop();
+                int rest_load_time = 15000 - Frame - to_time - VirtualToBerthTime[i]; // 最多能给你多少时间装货
+                bool time_out = false;                                                // 是否超过了能装货的最短时间
+                int loaded_goods_num = 0;                                             // 已经装了的货数量
+
+                queue<int> tmp = Berths[i].goods_queue;
+                while (!tmp.empty())
+                { // 先装已有的货，并且更新已经用了的时间
+                    if (time_first >= rest_load_time)
+                    { // 超时了，就记录一下，并且不装了
+                        time_out = true;
+                        break;
                     }
-                    // 再加估算的价值
-                    berth_all_value += (add_goods_num * 100);
-                }
-                else
-                { // 如果已有的货物量大于容量，则装满
-                    int loaded_goods_num = 0;
-                    queue<int> tmp = Berths[i].goods_queue;
-                    while (!tmp.empty())
-                    {
-                        if (loaded_goods_num >= BoatCapacity - Boats[boat_index].goods_num)
-                        { // 已经装满了
-                            break;
-                        }
-                        berth_all_value += AllGoods[tmp.front()].val;
-                        tmp.pop();
-                        loaded_goods_num++;
-                    }
+                    loaded_goods_num++; // 装一个货
                     time_first = (loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
-                    time_second = 0;
-                    if (tmp.empty())
-                    { // 说明之前的全部装完了，装我估算的
-                        time_second += ((BoatCapacity - Boats[boat_index].goods_num - loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed);
-                        berth_all_value += ((BoatCapacity - Boats[boat_index].goods_num - loaded_goods_num) * 100);
+                    berth_all_value += AllGoods[tmp.front()].val;
+                    tmp.pop();
+                    if (loaded_goods_num >= BoatCapacity - Boats[boat_index].goods_num)
+                    { // 已经装满了，就不装了
+                        break;
                     }
                 }
+
+                if (loaded_goods_num < BoatCapacity - Boats[boat_index].goods_num && !time_out)
+                { // 没有装满并且还有时间装（那就装预计增加的，装多少取决于剩余时间内能装的，多少容量以及还有多少货，三者中的最小值）
+                    double load_num_again = min(rest_load_time * Berths[i].loading_speed, BoatCapacity - Boats[boat_index].goods_num - loaded_goods_num);
+                    load_num_again = min(load_num_again, add_goods_num);
+                    // 这些货的价值和时间
+                    time_second += (load_num_again / Berths[i].loading_speed);
+                    berth_all_value += (load_num_again * 100.0);
+                }
+                // // 模拟该船装货物
+                // int time_first = 0;
+                // double time_second = 0;
+                // if ((int)Berths[i].goods_queue.size() + add_goods_num < BoatCapacity - Boats[boat_index].goods_num)
+                // { // 如果货很少，就全装走
+                //     time_first = ((int)Berths[i].goods_queue.size() + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
+                //     time_second = add_goods_num / Berths[i].loading_speed;
+                //     // 先加已有的总价值
+                //     queue<int> tmp = Berths[i].goods_queue;
+                //     while (!tmp.empty())
+                //     {
+                //         berth_all_value += AllGoods[tmp.front()].val;
+                //         tmp.pop();
+                //     }
+                //     // 再加估算的价值
+                //     berth_all_value += (add_goods_num * 100);
+                // }
+                // else
+                // { // 如果已有的货物量大于容量，则装满
+                //     int loaded_goods_num = 0;
+                //     queue<int> tmp = Berths[i].goods_queue;
+                //     while (!tmp.empty())
+                //     {
+                //         if (loaded_goods_num >= BoatCapacity - Boats[boat_index].goods_num)
+                //         { // 已经装满了
+                //             break;
+                //         }
+                //         berth_all_value += AllGoods[tmp.front()].val;
+                //         tmp.pop();
+                //         loaded_goods_num++;
+                //     }
+                //     time_first = (loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
+                //     time_second = 0;
+                //     if (tmp.empty())
+                //     { // 说明之前的全部装完了，装我估算的
+                //         time_second += ((BoatCapacity - Boats[boat_index].goods_num - loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed);
+                //         berth_all_value += ((BoatCapacity - Boats[boat_index].goods_num - loaded_goods_num) * 100);
+                //     }
+                // }
+
                 // 计算性价比
                 berth_all_value /= (to_time + VirtualToBerthTime[i] + time_first + time_second);
                 if (berth_all_value > max_value)
