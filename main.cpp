@@ -431,19 +431,6 @@ void BoatDispatch()
                     printf("ship %d %d\n", i, VirtualToBerthTransit[best_berth]);
                     Berths[best_berth].boat_num++;
                 }
-                //                else if (Frame == 100) //第50帧了船还在初始点就赶紧滚
-                //                {
-                //                    for (int j = 0; j < BERTH_NUM; j++)
-                //                    {
-                //                        if (Berths[j].boat_num == 0)
-                //                        {
-                //                            Boats[i].real_dest = j;
-                //                            printf("ship %d %d\n", i, VirtualToBerthTransit[j]);
-                //                            Berths[j].boat_num++;
-                //                            break; //这个是退出里循环，但不退出外循环，break还是要慎用的
-                //                        }
-                //                    }
-                //                }
             }
             else
             { // 船在港口
@@ -970,48 +957,6 @@ void RobotDsipatchGreedy()
         }
         roads_pq.pop();
     }
-
-    // pair<int, int> berth_robot_num[BERTH_NUM]; // 每个港口作为目标匹配的机器人数
-    // // 初始化，所有机器人数目设置为0
-    // for (int i = 0; i < BERTH_NUM; i++)
-    // {
-    //     berth_robot_num[i] = {i, 0};
-    // }
-    // // 若有人没匹配上
-    // for (int i = 0; i < ROBOT_NUM; i++)
-    // {
-    //     // 先统计每个港口作为目标匹配的机器人数
-    //     if (Robots[i].berth_index != -1)
-    //     {
-    //         berth_robot_num[Robots[i].berth_index].second++;
-    //     }
-    // }
-    // // 按港口机器人数排序
-    // sort(berth_robot_num, berth_robot_num + BERTH_NUM,
-    //      [](const std::pair<int, int> &a, const std::pair<int, int> &b)
-    //      {
-    //          return a.second < b.second;
-    //      });
-    // for (int i = 0; i < ROBOT_NUM; i++)
-    // {
-    //     // 没匹配上的机器人向人最少的港口移动
-    //     if (robots_match[i] == 0)
-    //     { // 没匹配上
-    //         int j = 0;
-    //         for (j = 0; j < BERTH_NUM; j++)
-    //         {
-    //             if (BerthPathLenth[berth_robot_num[j].first][Robots[i].x][Robots[i].y] >= 0)
-    //             {
-    //                 Robots[i].dir = BerthPath[berth_robot_num[j].first][Robots[i].x][Robots[i].y]; // 向人最少的港口移动一步
-    //                 break;
-    //             }
-    //         }
-    //         if (j == BERTH_NUM)
-    //         {
-    //             Robots[i].dir = -1; // 到不了港口罚站
-    //         }
-    //     }
-    // }
 
     for (int ri = 0; ri < ROBOT_NUM; ri++)
     { // 没匹配上的机器人向远离港口(上一次放货的港口)的方向移动
@@ -1560,16 +1505,16 @@ int main()
 {
     Init();
 
-    //    ofstream out_file = CreateFile();
-    //    // 输出所有的虚拟点到港口时间
-    //    for (int i = 0; i < BERTH_NUM; i++)
-    //    {
-    //        out_file << "Virtual " << i << " to Berth Time: " << VirtualToBerthTime[i] << endl;
-    //    }
+    // ofstream out_file = CreateFile();
+    // // 输出所有的虚拟点到港口时间
+    // for (int i = 0; i < BERTH_NUM; i++)
+    // {
+    //     out_file << "Virtual " << i << " to Berth Time: " << VirtualToBerthTime[i] << endl;
+    // }
 
     for (int frame = 1; frame <= 15000; frame++)
     {
-        //        Print(out_file, 50);
+        // Print(out_file, 50);
         Input();
         RobotDsipatchGreedy();
         AvoidCollision();
@@ -1593,7 +1538,7 @@ int main()
         fflush(stdout);
     }
 
-    //    out_file.close(); // 关闭文件
+    // out_file.close(); // 关闭文件
 
     return 0;
 }
@@ -1876,3 +1821,59 @@ int main()
 //    }
 //    return berth_tmp;
 //}
+
+//                else if (Frame == 100) //第50帧了船还在初始点就赶紧滚
+//                {
+//                    for (int j = 0; j < BERTH_NUM; j++)
+//                    {
+//                        if (Berths[j].boat_num == 0)
+//                        {
+//                            Boats[i].real_dest = j;
+//                            printf("ship %d %d\n", i, VirtualToBerthTransit[j]);
+//                            Berths[j].boat_num++;
+//                            break; //这个是退出里循环，但不退出外循环，break还是要慎用的
+//                        }
+//                    }
+//                }
+
+// pair<int, int> berth_robot_num[BERTH_NUM]; // 每个港口作为目标匹配的机器人数
+// // 初始化，所有机器人数目设置为0
+// for (int i = 0; i < BERTH_NUM; i++)
+// {
+//     berth_robot_num[i] = {i, 0};
+// }
+// // 若有人没匹配上
+// for (int i = 0; i < ROBOT_NUM; i++)
+// {
+//     // 先统计每个港口作为目标匹配的机器人数
+//     if (Robots[i].berth_index != -1)
+//     {
+//         berth_robot_num[Robots[i].berth_index].second++;
+//     }
+// }
+// // 按港口机器人数排序
+// sort(berth_robot_num, berth_robot_num + BERTH_NUM,
+//      [](const std::pair<int, int> &a, const std::pair<int, int> &b)
+//      {
+//          return a.second < b.second;
+//      });
+// for (int i = 0; i < ROBOT_NUM; i++)
+// {
+//     // 没匹配上的机器人向人最少的港口移动
+//     if (robots_match[i] == 0)
+//     { // 没匹配上
+//         int j = 0;
+//         for (j = 0; j < BERTH_NUM; j++)
+//         {
+//             if (BerthPathLenth[berth_robot_num[j].first][Robots[i].x][Robots[i].y] >= 0)
+//             {
+//                 Robots[i].dir = BerthPath[berth_robot_num[j].first][Robots[i].x][Robots[i].y]; // 向人最少的港口移动一步
+//                 break;
+//             }
+//         }
+//         if (j == BERTH_NUM)
+//         {
+//             Robots[i].dir = -1; // 到不了港口罚站
+//         }
+//     }
+// }
