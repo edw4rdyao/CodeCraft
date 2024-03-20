@@ -193,6 +193,25 @@ int IsOnGoods(int x, int y)
     return -100;
 }
 
+// 找到所标记港口中的最短距离港口
+int LastMinBerth(int x, int y)
+{
+    int min_berth = -1; // 最短标记港口；无标记就返回-1
+    int min_len = MAX_LENGTH;
+    for (int i = 0; i < BERTH_NUM; i++)
+    {
+        if (Berths[i].is_last == 1)
+        {
+            if (BerthPathLenth[i][x][y] < min_len)
+            {
+                min_len = BerthPathLenth[i][x][y];
+                min_berth = i;
+            }
+        }
+    }
+    return min_berth;
+}
+
 // 计算物品性价比
 double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
 {
@@ -763,25 +782,6 @@ bool GetGoodsRobotsCompair(int ri, int rj)
     {
         return false;
     }
-}
-
-// 找到所标记港口中的最短距离港口
-int LastMinBerth(int x, int y)
-{
-    int min_berth = -1; // 最短标记港口；无标记就返回-1
-    int min_len = MAX_LENGTH;
-    for (int i = 0; i < BERTH_NUM; i++)
-    {
-        if (Berths[i].is_last == 1)
-        {
-            if (BerthPathLenth[i][x][y] < min_len)
-            {
-                min_len = BerthPathLenth[i][x][y];
-                min_berth = i;
-            }
-        }
-    }
-    return min_berth;
 }
 
 struct Road
