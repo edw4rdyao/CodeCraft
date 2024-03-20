@@ -572,7 +572,7 @@ void BoatDispatch()
                             Berths[best_berth_or_go].is_last = 1;
                         }
                     }
-                    else  // 剩下的正常装货
+                    else // 剩下的正常装货
                     {
                         // 如果在最后关头选择继续留在该港口，那么给这个港口进行标记
                         if (BERTH_TRAN_LEN + VirtualToBerthTime[best_berth_or_go] >= MAX_FRAME - Frame)
@@ -581,7 +581,7 @@ void BoatDispatch()
                         }
                     }
                 }
-                else  // 剩下的正常装货
+                else // 剩下的正常装货
                 {
                 }
             }
@@ -939,6 +939,7 @@ void RobotDsipatchGreedy()
             else
             { // 没到港口，沿着图走
                 int berth_id = LastMinBerth(Robots[ri].x, Robots[ri].y);
+                // int berth_id = -1;
                 if (berth_id == -1)
                 { // 没标记
                     robot_match_num++;
@@ -1143,9 +1144,32 @@ bool CrashAvoid(int ri)
     return true;
 }
 
+// FILE *file;
 // 碰撞检测与规避
 void AvoidCollision()
 {
+
+    // if (Frame == 13445)
+    // {
+    //     file = fopen("debug.txt", "w");
+    //     // 将用户输入的内容写入文件
+    //     if (file != NULL)
+    //     {
+    //         fprintf(file, "13445 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
+    //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
+    //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
+    //     }
+    // }
+    // if (Frame == 13446)
+    // {
+    //     // 将用户输入的内容写入文件
+    //     if (file != NULL)
+    //     {
+    //         fprintf(file, "13446 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
+    //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
+    //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
+    //     }
+    // }
     bool is_collision = true;                     // 本次是否有碰撞
     int detect_num = 0;                           // 检测的次数
     bool is_collision_robot[ROBOT_NUM] = {false}; // 对每个机器人判断本轮是否有冲突
@@ -1205,6 +1229,16 @@ void AvoidCollision()
                                     is_collision_robot[rj] = true;
                                 }
                             }
+                            // if (Frame == 13446 && rj == 9)
+                            // {
+                            //     // 将用户输入的内容写入文件
+                            //     if (file != NULL)
+                            //     {
+                            //         fprintf(file, "ri: %d\n", ri);
+                            //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index, is_collision_robot[4]);
+                            //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index, is_collision_robot[9]);
+                            //     }
+                            // }
                             break;
                         }
                         // 碰上移动的机器人j
@@ -1403,7 +1437,17 @@ void AvoidCollision()
                                         }
                                     }
                                 }
-                                break;
+                                // if (Frame == 13446 && rj == 9)
+                                // {
+                                //     // 将用户输入的内容写入文件
+                                //     if (file != NULL)
+                                //     {
+                                //         fprintf(file, "ri: %d\n", ri);
+                                //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index, is_collision_robot[4]);
+                                //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index, is_collision_robot[9]);
+                                //     }
+                                // }
+                                // break;
                             }
                             // 抢位
                             if (nx_ri == nx_rj && ny_ri == ny_rj)
@@ -1460,6 +1504,16 @@ void AvoidCollision()
                                     Robots[ri].dir = -1;
                                     is_collision_robot[ri] = true;
                                 }
+                                // if (Frame == 13446 && rj == 9)
+                                // {
+                                //     // 将用户输入的内容写入文件
+                                //     if (file != NULL)
+                                //     {
+                                //         fprintf(file, "ri: %d\n", ri);
+                                //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index, is_collision_robot[4]);
+                                //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index, is_collision_robot[9]);
+                                //     }
+                                // }
                                 break;
                             }
                         }
@@ -1478,6 +1532,27 @@ void AvoidCollision()
             break;
         }
     }
+    // if (Frame == 13445)
+    // {
+    //     // 将用户输入的内容写入文件
+    //     if (file != NULL)
+    //     {
+    //         fprintf(file, "13445 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
+    //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
+    //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
+    //     }
+    // }
+    // if (Frame == 13446)
+    // {
+    //     // 将用户输入的内容写入文件
+    //     if (file != NULL)
+    //     {
+    //         fprintf(file, "13446 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
+    //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
+    //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
+    //     }
+    //     fclose(file);
+    // }
 }
 
 // 打印机器人指令
@@ -1556,7 +1631,8 @@ void PrintBoatInfo(ofstream &out_file)
 }
 
 // 输出机器人所获得的总金额
-void PrintRobotsMoney(ofstream &out_file) {
+void PrintRobotsMoney(ofstream &out_file)
+{
     out_file << "------Robot Money------" << endl;
     out_file << "Robot Money: " << RobotMoney << endl;
 }
