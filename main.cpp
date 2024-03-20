@@ -474,6 +474,13 @@ void BoatDispatch()
                 if (Boats[i].goods_num >= BoatCapacity)
                 { // 如果船装满了，一定要出发去虚拟点
                     BoatToVirtual(i);
+
+                    // 如果在最后关头装满了货，那么出发并且解除该港口的标记
+                    if (BERTH_TRAN_LEN + VirtualToBerthTime[Boats[i].pos] >= 15000 - Frame)
+                    {
+                        Berths[Boats[i].pos].is_last = 0;
+                    }
+
                     continue;
                 }
                 else if (Berths[Boats[i].pos].goods_queue.size() == 0)
@@ -489,8 +496,25 @@ void BoatDispatch()
                         Berths[best_berth_or_go].boat_num++;
                         Boats[i].real_dest = best_berth_or_go;
                         printf("ship %d %d\n", i, best_berth_or_go);
-                    } // 剩下的正常装货
-                }     // 剩下的正常装货
+
+                        // 如果在最后关头进行最后一次调度到其他港口的操作，那么给那个港口进行标记
+                        if (2 * BERTH_TRAN_LEN + VirtualToBerthTime[best_berth_or_go] >= 15000 - Frame)
+                        {
+                            Berths[best_berth_or_go].is_last = 1;
+                        }
+                    }
+                    else  // 剩下的正常装货
+                    {
+                        // 如果在最后关头选择继续留在该港口，那么给这个港口进行标记
+                        if (BERTH_TRAN_LEN + VirtualToBerthTime[best_berth_or_go] >= 15000 - Frame)
+                        {
+                            Berths[best_berth_or_go].is_last = 1;
+                        }
+                    }
+                }
+                else  // 剩下的正常装货
+                {
+                }
             }
         }
         else if (Boats[i].status == 2)
