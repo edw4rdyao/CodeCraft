@@ -554,7 +554,68 @@ vector<int> GetRandomDirection()
     return random_dir;
 }
 
-void ToBerthBFS()
+// 读取地图和初始信息
+void InitInfo()
+{
+    // 读取地图
+    int r_num = 0;
+    for (int i = 0; i < N; i++)
+    {
+        for (int j = 0; j < N; j++)
+        {
+            char ch;
+            scanf("%c", &ch);
+            if (ch == '.')
+            { // 空地
+                World[i][j] = 0;
+            }
+            else if (ch == '*')
+            { // 海洋
+                World[i][j] = -1;
+            }
+            else if (ch == '#')
+            { // 障碍
+                World[i][j] = -2;
+            }
+            else if (ch == 'B')
+            { // 港口
+                World[i][j] = 3;
+            }
+            else if (ch == 'A')
+            { // 机器人(空地)，存下来
+                World[i][j] = 0;
+                Robots[r_num++] = Robot(i, j);
+            }
+            else
+            { // 其他(理论上不会有)
+                World[i][j] = -3;
+            }
+        }
+        char ch;
+        scanf("%c", &ch);
+    }
+
+    // 读入泊位的信息
+    for (int i = 0; i < BERTH_NUM; i++)
+    {
+        int id;
+        scanf("%d", &id);
+        scanf("%d%d%d%d", &Berths[id].x, &Berths[id].y, &Berths[id].transport_time, &Berths[id].loading_speed);
+    }
+    // 读入船的容量
+    scanf("%d", &BoatCapacity);
+    // 读入ok
+    char ok[100];
+    scanf("%s", ok);
+    // 初始化船的信息
+    for (int i = 0; i < BOAT_NUM; i++)
+    {
+        Boats[i] = Boat(-1, 1);
+    }
+}
+
+// BFS存储每个港口到地图每个点最短路径和距离
+void InitToBerthBFS()
 {
     // 初始化所有泊位到每个点的最短路径及长度，均为-1
     memset(BerthPath, -1, sizeof(BerthPath));
@@ -562,8 +623,8 @@ void ToBerthBFS()
     // 对每个泊位（左上角->中间点）开始做BFS
     for (int b = 0; b < BERTH_NUM; b++)
     {
-        int berth_x = Berths[b].x + 1;
-        int berth_y = Berths[b].y + 1;
+        int berth_x = Berths[b].x;
+        int berth_y = Berths[b].y;
         queue<pair<int, int>> q;
         q.push({berth_x, berth_y});
         // 泊位本身的路径长度为0
@@ -581,9 +642,15 @@ void ToBerthBFS()
                 int nx = cur_pos.first + DX[dir];
                 int ny = cur_pos.second + DY[dir];
                 if (IsValid(nx, ny) && BerthPathLenth[b][nx][ny] < 0)
-                { // 判断该点是否可以到达(没有越界&&为空地或者泊位&&之前没有到达过)
-                    // 路径长度+1
-                    BerthPathLenth[b][nx][ny] = BerthPathLenth[b][cur_pos.first][cur_pos.second] + 1;
+                { // 判断该点是否可以到达(没有越界，为空地或者泊位，并且之前没有到达过)
+                    if (nx - berth_x >= 0 && nx - berth_x <= 3 && ny - berth_y >= 0 && ny - berth_y <= 3)
+                    { // 该点在港口内，则路径为0
+                        BerthPathLenth[b][nx][ny] = 0;
+                    }
+                    else
+                    { // 否则路径加1
+                        BerthPathLenth[b][nx][ny] = BerthPathLenth[b][cur_pos.first][cur_pos.second] + 1;
+                    }
                     // 记录路径的方向
                     BerthPath[b][nx][ny] = REV_DIR[dir];
                     // 将该点加入队列
@@ -594,7 +661,8 @@ void ToBerthBFS()
     }
 }
 
-void JudgeRobotsLife()
+// 判断每个机器人和所有港口的可达性（如果都不可达则被困死）
+void InitJudgeRobotsLife()
 {
     // 对每个机器人进行检查
     for (int r = 0; r < ROBOT_NUM; r++)
@@ -616,7 +684,8 @@ void JudgeRobotsLife()
     }
 }
 
-void VirtualToBerth()
+// 记录虚拟点到泊点之间的最短路径
+void InitVirtualToBerth()
 {
     int max_virtual_to_berth_time = 0;
     int min_virtual_to_berth_time = MAX_LENGTH;
@@ -649,73 +718,11 @@ void VirtualToBerth()
 
 void Init()
 {
-    // 读取地图
-    int r_num = 0;
-    for (int i = 0; i < N; i++)
-    {
-        for (int j = 0; j < N; j++)
-        {
-            char ch;
-            scanf("%c", &ch);
-            if (ch == '.')
-            { // 空地
-                World[i][j] = 0;
-            }
-            else if (ch == '*')
-            { // 海洋
-                World[i][j] = -1;
-            }
-            else if (ch == '#')
-            { // 障碍
-                World[i][j] = -2;
-            }
-            else if (ch == 'B')
-            { // 港口
-                World[i][j] = 3;
-            }
-            else if (ch == 'A')
-            { // 机器人的空地
-              // 机器人的初始位置(i,j)，用robots数组存下来
-                World[i][j] = 0;
-
-                Robots[r_num++] = Robot(i, j);
-            }
-            else
-            { // 其他(理论上不会有)
-                World[i][j] = -3;
-            }
-        }
-        char ch;
-        scanf("%c", &ch);
-    }
-
-    // 初始化泊位的信息
-    for (int i = 0; i < BERTH_NUM; i++)
-    {
-        int id;
-        scanf("%d", &id);
-        scanf("%d%d%d%d", &Berths[id].x, &Berths[id].y, &Berths[id].transport_time, &Berths[id].loading_speed);
-    }
-    // 读入船的容量
-    scanf("%d", &BoatCapacity);
-    // ok
-    char ok[100];
-    scanf("%s", ok);
-
-    for (int i = 0; i < BOAT_NUM; i++)
-    {
-        Boats[i] = Boat(-1, 1);
-    }
-
-    // BFS存储每个港口到地图每个点最短路径和距离
-    ToBerthBFS();
-    // 判断每个机器人和所有港口的可达性（如果都不可达则被困死）
-    JudgeRobotsLife();
-
-    // 记录虚拟点到泊点之间的最短路径
-    VirtualToBerth();
-
-    // ok
+    InitInfo();
+    InitToBerthBFS();
+    InitJudgeRobotsLife();
+    InitVirtualToBerth();
+    // 输出ok
     printf("OK\n");
     fflush(stdout);
 }
@@ -762,7 +769,7 @@ void Input()
         }
     }
 
-    // ok
+    // 读取ok
     char ok[100];
     scanf("%s", ok);
 }
