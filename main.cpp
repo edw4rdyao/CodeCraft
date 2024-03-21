@@ -1,9 +1,7 @@
 #ifdef _WIN32
 #include <bits/stdc++.h>
-
 #include <iostream>
 #include <fstream>
-
 #else
 #include <queue>
 #include <vector>
@@ -12,7 +10,7 @@
 #include <set>
 #include <random>
 #include <cstring>
-#include <ctime> // 包含 time()
+#include <ctime>
 #include <fstream>
 #endif
 
@@ -246,6 +244,239 @@ double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
     return cost_value;
 }
 
+// 方向随机排列
+vector<int> GetRandomDirection()
+{
+    vector<int> random_dir = {0, 1, 2, 3};
+    random_device rd;
+    mt19937 g(rd());
+    shuffle(random_dir.begin(), random_dir.end(), g);
+    return random_dir;
+}
+
+// 读取地图和初始信息
+void InitInfo()
+{
+    // 读取地图
+    int r_num = 0;
+    for (int i = 0; i < N; i++)
+    {
+        for (int j = 0; j < N; j++)
+        {
+            char ch;
+            scanf("%c", &ch);
+            if (ch == '.')
+            { // 空地
+                World[i][j] = 0;
+            }
+            else if (ch == '*')
+            { // 海洋
+                World[i][j] = -1;
+            }
+            else if (ch == '#')
+            { // 障碍
+                World[i][j] = -2;
+            }
+            else if (ch == 'B')
+            { // 港口
+                World[i][j] = 3;
+            }
+            else if (ch == 'A')
+            { // 机器人(空地)，存下来
+                World[i][j] = 0;
+                Robots[r_num++] = Robot(i, j);
+            }
+            else
+            { // 其他(理论上不会有)
+                World[i][j] = -3;
+            }
+        }
+        char ch;
+        scanf("%c", &ch);
+    }
+
+    // 读入泊位的信息
+    for (int i = 0; i < BERTH_NUM; i++)
+    {
+        int id;
+        scanf("%d", &id);
+        scanf("%d%d%d%d", &Berths[id].x, &Berths[id].y, &Berths[id].transport_time, &Berths[id].loading_speed);
+    }
+    // 读入船的容量
+    scanf("%d", &BoatCapacity);
+    // 读入ok
+    char ok[100];
+    scanf("%s", ok);
+    // 初始化船的信息
+    for (int i = 0; i < BOAT_NUM; i++)
+    {
+        Boats[i] = Boat(-1, 1);
+    }
+}
+
+// BFS存储每个港口到地图每个点最短路径和距离
+void InitToBerthBFS()
+{
+    // 初始化所有泊位到每个点的最短路径及长度，均为-1
+    memset(BerthPath, -1, sizeof(BerthPath));
+    memset(BerthPathLenth, -1, sizeof(BerthPathLenth));
+    // 对每个泊位（左上角->中间点）开始做BFS
+    for (int b = 0; b < BERTH_NUM; b++)
+    {
+        int berth_x = Berths[b].x;
+        int berth_y = Berths[b].y;
+        queue<pair<int, int>> q;
+        q.push({berth_x, berth_y});
+        // 泊位本身的路径长度为0
+        BerthPathLenth[b][berth_x][berth_y] = 0;
+        while (!q.empty())
+        {
+            // 从队列中取出一个点
+            pair<int, int> cur_pos = q.front();
+            q.pop();
+            // 四个方向随机遍历
+            vector<int> random_dir = GetRandomDirection();
+            for (int i = 0; i < 4; i++)
+            { // 遍历到下一个点
+                int dir = random_dir[i];
+                // int dir = (cur_pos.first + i) % 4; // 非随机
+                int nx = cur_pos.first + DX[dir];
+                int ny = cur_pos.second + DY[dir];
+                if (IsValid(nx, ny) && BerthPathLenth[b][nx][ny] < 0)
+                { // 判断该点是否可以到达(没有越界，为空地或者泊位，并且之前没有到达过)
+                    if (nx - berth_x >= 0 && nx - berth_x <= 3 && ny - berth_y >= 0 && ny - berth_y <= 3)
+                    { // 该点在港口内，则路径为0
+                        BerthPathLenth[b][nx][ny] = 0;
+                    }
+                    else
+                    { // 否则路径加1
+                        BerthPathLenth[b][nx][ny] = BerthPathLenth[b][cur_pos.first][cur_pos.second] + 1;
+                    }
+                    // 记录路径的方向
+                    BerthPath[b][nx][ny] = REV_DIR[dir];
+                    // 将该点加入队列
+                    q.push({nx, ny});
+                }
+            }
+        }
+    }
+}
+
+// 判断每个机器人和所有港口的可达性（如果都不可达则被困死）
+void InitJudgeRobotsLife()
+{
+    // 对每个机器人进行检查
+    for (int r = 0; r < ROBOT_NUM; r++)
+    {
+        int can_get = 0;
+        // 对每个港口进行检查
+        for (int b = 0; b < BERTH_NUM; b++)
+        {
+            if (BerthPathLenth[b][Robots[r].x][Robots[r].y] >= 0)
+            {
+                can_get++;
+            }
+        }
+        // 如果对每个港口都不可达，则被困死
+        if (can_get == 0)
+        {
+            Robots[r].is_dead = 1;
+        }
+    }
+}
+
+// 记录虚拟点到泊点之间的最短路径
+void InitVirtualToBerth()
+{
+    int max_virtual_to_berth_time = 0;
+    int min_virtual_to_berth_time = MAX_LENGTH;
+    // 虚拟点到港口（港口到虚拟点）
+    for (int bi = 0; bi < BERTH_NUM; bi++)
+    {
+        VirtualToBerthTime[bi] = Berths[bi].transport_time;
+        VirtualToBerthTransit[bi] = bi;
+        for (int bj = 0; bj < BERTH_NUM; bj++)
+        { // 如果先去其他点再回来要更短，则记录下来，并且只记录一个最短的的
+            if (Berths[bj].transport_time + BERTH_TRAN_LEN < VirtualToBerthTime[bi])
+            {
+                VirtualToBerthTime[bi] = Berths[bj].transport_time + BERTH_TRAN_LEN;
+                VirtualToBerthTransit[bi] = bj;
+            }
+        }
+        // 记录最大和最小时间
+        if (VirtualToBerthTime[bi] > max_virtual_to_berth_time)
+        {
+            max_virtual_to_berth_time = VirtualToBerthTime[bi];
+        }
+        if (VirtualToBerthTime[bi] < min_virtual_to_berth_time)
+        {
+            min_virtual_to_berth_time = VirtualToBerthTime[bi];
+        }
+    }
+    MaxVirtualToBerthTime = max_virtual_to_berth_time;
+    MinVirtualToBerthTime = min_virtual_to_berth_time;
+}
+
+// 初始化函数
+void Init()
+{
+    InitInfo();
+    InitToBerthBFS();
+    InitJudgeRobotsLife();
+    InitVirtualToBerth();
+    // 输出ok
+    printf("OK\n");
+    fflush(stdout);
+}
+
+// 更新每一帧输入信息
+void Input()
+{
+    // 更新当前帧数和分数
+    scanf("%d%d", &Frame, &Money);
+    // 添加新增的物品
+    int goods_num;
+    scanf("%d", &goods_num);
+    for (int i = 0; i < goods_num; i++)
+    {
+        int x, y, val;
+        scanf("%d%d%d", &x, &y, &val);
+        AllGoods[NextGoodsIndex] = Goods(x, y, val, Frame);
+        World[x][y] = 100 + NextGoodsIndex;
+        NextGoodsIndex++;
+    }
+    // 同步机器人的位置
+    for (int i = 0; i < ROBOT_NUM; i++)
+    {
+        int is_goods, x, y, status;
+        scanf("%d%d%d%d", &is_goods, &x, &y, &status);
+        // 更新机器人的状态
+        Robots[i].x = x;
+        Robots[i].y = y;
+        Robots[i].is_goods = is_goods;
+        Robots[i].status = status;
+        // 重置动作，商品id以及方向
+        Robots[i].action = -1;
+        Robots[i].dir = -1;
+    }
+    // 更新船的状态和位置
+    for (int i = 0; i < BOAT_NUM; i++)
+    {
+        int status, pos;
+        scanf("%d%d\n", &status, &pos);
+        // 当帧数不为1时，轮船的状态和目标点才有效（轮船的初始位置均认为在虚拟点）
+        if (Frame != 1)
+        {
+            Boats[i].status = status;
+            Boats[i].pos = pos;
+        }
+    }
+
+    // 读取ok
+    char ok[100];
+    scanf("%s", ok);
+}
+
 // 船去虚拟点
 void BoatToVirtual(int boat_index)
 {
@@ -261,6 +492,7 @@ void BoatToVirtual(int boat_index)
     Berths[Boats[boat_index].pos].boat_num--; // 港口的真正的船数量减一
 }
 
+// 在虚拟点找一个最好的港口出发
 int FindBestBerthFromVirtual(int boat_index)
 {
     int best_berth = -1;
@@ -322,6 +554,7 @@ int FindBestBerthFromVirtual(int boat_index)
     return best_berth;
 }
 
+// 在港口选择其他港口或者返回虚拟点
 int FindBestBerthOrGoFromBerth(int boat_index)
 {
     int best_berth_or_go = -2;
@@ -544,236 +777,6 @@ void LoadGoods()
     }
 }
 
-// 方向随机排列
-vector<int> GetRandomDirection()
-{
-    vector<int> random_dir = {0, 1, 2, 3};
-    random_device rd;
-    mt19937 g(rd());
-    shuffle(random_dir.begin(), random_dir.end(), g);
-    return random_dir;
-}
-
-// 读取地图和初始信息
-void InitInfo()
-{
-    // 读取地图
-    int r_num = 0;
-    for (int i = 0; i < N; i++)
-    {
-        for (int j = 0; j < N; j++)
-        {
-            char ch;
-            scanf("%c", &ch);
-            if (ch == '.')
-            { // 空地
-                World[i][j] = 0;
-            }
-            else if (ch == '*')
-            { // 海洋
-                World[i][j] = -1;
-            }
-            else if (ch == '#')
-            { // 障碍
-                World[i][j] = -2;
-            }
-            else if (ch == 'B')
-            { // 港口
-                World[i][j] = 3;
-            }
-            else if (ch == 'A')
-            { // 机器人(空地)，存下来
-                World[i][j] = 0;
-                Robots[r_num++] = Robot(i, j);
-            }
-            else
-            { // 其他(理论上不会有)
-                World[i][j] = -3;
-            }
-        }
-        char ch;
-        scanf("%c", &ch);
-    }
-
-    // 读入泊位的信息
-    for (int i = 0; i < BERTH_NUM; i++)
-    {
-        int id;
-        scanf("%d", &id);
-        scanf("%d%d%d%d", &Berths[id].x, &Berths[id].y, &Berths[id].transport_time, &Berths[id].loading_speed);
-    }
-    // 读入船的容量
-    scanf("%d", &BoatCapacity);
-    // 读入ok
-    char ok[100];
-    scanf("%s", ok);
-    // 初始化船的信息
-    for (int i = 0; i < BOAT_NUM; i++)
-    {
-        Boats[i] = Boat(-1, 1);
-    }
-}
-
-// BFS存储每个港口到地图每个点最短路径和距离
-void InitToBerthBFS()
-{
-    // 初始化所有泊位到每个点的最短路径及长度，均为-1
-    memset(BerthPath, -1, sizeof(BerthPath));
-    memset(BerthPathLenth, -1, sizeof(BerthPathLenth));
-    // 对每个泊位（左上角->中间点）开始做BFS
-    for (int b = 0; b < BERTH_NUM; b++)
-    {
-        int berth_x = Berths[b].x;
-        int berth_y = Berths[b].y;
-        queue<pair<int, int>> q;
-        q.push({berth_x, berth_y});
-        // 泊位本身的路径长度为0
-        BerthPathLenth[b][berth_x][berth_y] = 0;
-        while (!q.empty())
-        {
-            // 从队列中取出一个点
-            pair<int, int> cur_pos = q.front();
-            q.pop();
-            // 四个方向随机遍历
-            vector<int> random_dir = GetRandomDirection();
-            for (int i = 0; i < 4; i++)
-            { // 遍历到下一个点
-                int dir = random_dir[i];
-                int nx = cur_pos.first + DX[dir];
-                int ny = cur_pos.second + DY[dir];
-                if (IsValid(nx, ny) && BerthPathLenth[b][nx][ny] < 0)
-                { // 判断该点是否可以到达(没有越界，为空地或者泊位，并且之前没有到达过)
-                    if (nx - berth_x >= 0 && nx - berth_x <= 3 && ny - berth_y >= 0 && ny - berth_y <= 3)
-                    { // 该点在港口内，则路径为0
-                        BerthPathLenth[b][nx][ny] = 0;
-                    }
-                    else
-                    { // 否则路径加1
-                        BerthPathLenth[b][nx][ny] = BerthPathLenth[b][cur_pos.first][cur_pos.second] + 1;
-                    }
-                    // 记录路径的方向
-                    BerthPath[b][nx][ny] = REV_DIR[dir];
-                    // 将该点加入队列
-                    q.push({nx, ny});
-                }
-            }
-        }
-    }
-}
-
-// 判断每个机器人和所有港口的可达性（如果都不可达则被困死）
-void InitJudgeRobotsLife()
-{
-    // 对每个机器人进行检查
-    for (int r = 0; r < ROBOT_NUM; r++)
-    {
-        int can_get = 0;
-        // 对每个港口进行检查
-        for (int b = 0; b < BERTH_NUM; b++)
-        {
-            if (BerthPathLenth[b][Robots[r].x][Robots[r].y] >= 0)
-            {
-                can_get++;
-            }
-        }
-        // 如果对每个港口都不可达，则被困死
-        if (can_get == 0)
-        {
-            Robots[r].is_dead = 1;
-        }
-    }
-}
-
-// 记录虚拟点到泊点之间的最短路径
-void InitVirtualToBerth()
-{
-    int max_virtual_to_berth_time = 0;
-    int min_virtual_to_berth_time = MAX_LENGTH;
-    // 虚拟点到港口（港口到虚拟点）
-    for (int bi = 0; bi < BERTH_NUM; bi++)
-    {
-        VirtualToBerthTime[bi] = Berths[bi].transport_time;
-        VirtualToBerthTransit[bi] = bi;
-        for (int bj = 0; bj < BERTH_NUM; bj++)
-        { // 如果先去其他点再回来要更短，则记录下来，并且只记录一个最短的的
-            if (Berths[bj].transport_time + BERTH_TRAN_LEN < VirtualToBerthTime[bi])
-            {
-                VirtualToBerthTime[bi] = Berths[bj].transport_time + BERTH_TRAN_LEN;
-                VirtualToBerthTransit[bi] = bj;
-            }
-        }
-        // 记录最大和最小时间
-        if (VirtualToBerthTime[bi] > max_virtual_to_berth_time)
-        {
-            max_virtual_to_berth_time = VirtualToBerthTime[bi];
-        }
-        if (VirtualToBerthTime[bi] < min_virtual_to_berth_time)
-        {
-            min_virtual_to_berth_time = VirtualToBerthTime[bi];
-        }
-    }
-    MaxVirtualToBerthTime = max_virtual_to_berth_time;
-    MinVirtualToBerthTime = min_virtual_to_berth_time;
-}
-
-void Init()
-{
-    InitInfo();
-    InitToBerthBFS();
-    InitJudgeRobotsLife();
-    InitVirtualToBerth();
-    // 输出ok
-    printf("OK\n");
-    fflush(stdout);
-}
-
-void Input()
-{
-    // 更新当前帧数和分数
-    scanf("%d%d", &Frame, &Money);
-    // 添加新增的物品
-    int goods_num;
-    scanf("%d", &goods_num);
-    for (int i = 0; i < goods_num; i++)
-    {
-        int x, y, val;
-        scanf("%d%d%d", &x, &y, &val);
-        AllGoods[NextGoodsIndex] = Goods(x, y, val, Frame);
-        World[x][y] = 100 + NextGoodsIndex;
-        NextGoodsIndex++;
-    }
-    // 同步机器人的位置
-    for (int i = 0; i < ROBOT_NUM; i++)
-    {
-        int is_goods, x, y, status;
-        scanf("%d%d%d%d", &is_goods, &x, &y, &status);
-        // 更新机器人的状态
-        Robots[i].x = x;
-        Robots[i].y = y;
-        Robots[i].is_goods = is_goods;
-        Robots[i].status = status;
-        // 重置动作，商品id以及方向
-        Robots[i].action = -1;
-        Robots[i].dir = -1;
-    }
-    // 更新船的状态和位置
-    for (int i = 0; i < BOAT_NUM; i++)
-    {
-        int status, pos;
-        scanf("%d%d\n", &status, &pos);
-        // 当帧数不为1时，轮船的状态和目标点才有效（轮船的初始位置均认为在虚拟点）
-        if (Frame != 1)
-        {
-            Boats[i].status = status;
-            Boats[i].pos = pos;
-        }
-    }
-
-    // 读取ok
-    char ok[100];
-    scanf("%s", ok);
-}
-
 // 没拿物品的机器人之间比较要拿物品的性价比
 bool NoGoodsRobotsCompair(int ri, int rj)
 {
@@ -835,9 +838,10 @@ struct Road
     }
 };
 
+// 机器人调度
 void RobotDsipatchGreedy()
 {
-    // 维护一个Road优先队列，每次找一条最短的路径匹配
+    // 维护一个Road优先队列，每次找一条最有价值的路径匹配
     priority_queue<Road, std::vector<Road>, Road::Comparator> roads_pq;
     vector<int> robots_match(ROBOT_NUM, 0); // 机器人是否匹配
     set<int> goods_match;                   // 被匹配的商品
@@ -1321,7 +1325,6 @@ void RushPosisionAvoid(int ri, int rj, bool (&is_collision_robot)[ROBOT_NUM])
     }
 }
 
-// FILE *file;
 // 碰撞检测与规避
 void AvoidCollision()
 {
@@ -1419,20 +1422,20 @@ void AvoidCollision()
 
                                     if (Robots[rk].x == nx_ri && Robots[rk].y == ny_ri && Robots[ri].x == nx_rk && Robots[ri].y == ny_rk)
                                     { // k和i对冲
-                                      HedgeAvoid(ri, rk, is_collision_robot);
+                                        HedgeAvoid(ri, rk, is_collision_robot);
                                     }
                                     else if (Robots[rk].x == nx_rj && Robots[rk].y == ny_rj && Robots[rj].x == nx_rk && Robots[rj].y == ny_rk)
                                     { // k和j对冲
-                                      HedgeAvoid(rj, rk, is_collision_robot);
+                                        HedgeAvoid(rj, rk, is_collision_robot);
                                     }
                                     else
                                     { // k都不对冲，判断i,j抢位
-                                      RushPosisionAvoid(ri, rj, is_collision_robot);
+                                        RushPosisionAvoid(ri, rj, is_collision_robot);
                                     }
                                 }
                                 else
                                 { // 没机器人，判断i，j抢位
-                                   RushPosisionAvoid(ri, rj, is_collision_robot);
+                                    RushPosisionAvoid(ri, rj, is_collision_robot);
                                 }
                                 break;
                             }
