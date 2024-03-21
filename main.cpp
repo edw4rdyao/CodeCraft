@@ -1002,7 +1002,7 @@ void RobotDsipatchGreedy()
     }
 }
 
-// 对冲让位函数
+// 让位函数
 bool CrashAvoid(int ri)
 {
     // ri优先让两边
@@ -1073,32 +1073,258 @@ bool CrashAvoid(int ri)
     return true;
 }
 
+// 对冲让位函数
+void HedgeAvoid(int ri, int rj, bool (&is_collision_robot)[ROBOT_NUM])
+{
+    // 性价比低的机器人避让（优先让两边，实在不行往后面退，再不行就让性价比高的让）
+    if (Robots[ri].is_goods && Robots[rj].is_goods)
+    { // 都拿物品
+        if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
+        { // 若都有/都没有碰撞过
+            if (GetGoodsRobotsCompair(ri, rj))
+            { // 我拿的好
+                if (!CrashAvoid(rj))
+                {
+                    CrashAvoid(ri);
+                    is_collision_robot[ri] = true;
+                }
+                else
+                {
+                    is_collision_robot[rj] = true;
+                }
+            }
+            else
+            { // 别人拿的好
+                if (!CrashAvoid(ri))
+                {
+                    CrashAvoid(rj);
+                    is_collision_robot[rj] = true;
+                }
+                else
+                {
+                    is_collision_robot[ri] = true;
+                }
+            }
+        }
+        else if (is_collision_robot[ri])
+        { // 只有我有冲突过
+            if (!CrashAvoid(rj))
+            {
+                CrashAvoid(ri);
+                is_collision_robot[ri] = true;
+            }
+            else
+            {
+                is_collision_robot[rj] = true;
+            }
+        }
+        else
+        { // 只有他冲突过
+            if (!CrashAvoid(ri))
+            {
+                CrashAvoid(rj);
+                is_collision_robot[rj] = true;
+            }
+            else
+            {
+                is_collision_robot[ri] = true;
+            }
+        }
+    }
+    else if (!Robots[ri].is_goods && !Robots[rj].is_goods)
+    { // 都没拿物品
+        if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
+        { // 若都有/都没有碰撞过
+            if (NoGoodsRobotsCompair(ri, rj))
+            { // 我拿的好
+                if (!CrashAvoid(rj))
+                {
+                    CrashAvoid(ri);
+                    is_collision_robot[ri] = true;
+                }
+                else
+                {
+                    is_collision_robot[rj] = true;
+                }
+            }
+            else
+            { // 别人拿的好
+                if (!CrashAvoid(ri))
+                {
+                    CrashAvoid(rj);
+                    is_collision_robot[rj] = true;
+                }
+                else
+                {
+                    is_collision_robot[ri] = true;
+                }
+            }
+        }
+        else if (is_collision_robot[ri])
+        { // 只有我有冲突过
+            if (!CrashAvoid(rj))
+            {
+                CrashAvoid(ri);
+                is_collision_robot[ri] = true;
+            }
+            else
+            {
+                is_collision_robot[rj] = true;
+            }
+        }
+        else
+        { // 只有他冲突过
+            if (!CrashAvoid(ri))
+            {
+                CrashAvoid(rj);
+                is_collision_robot[rj] = true;
+            }
+            else
+            {
+                is_collision_robot[ri] = true;
+            }
+        }
+    }
+    else if (!Robots[ri].is_goods && Robots[rj].is_goods)
+    { // 我没拿别人拿了，我让，ri优先让两边
+        if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
+        { // 若都有/都没有碰撞过
+            if (!CrashAvoid(ri))
+            {
+                CrashAvoid(rj);
+                is_collision_robot[rj] = true;
+            }
+            else
+            {
+                is_collision_robot[ri] = true;
+            }
+        }
+        else if (is_collision_robot[ri])
+        { // 只有我有冲突过
+            if (!CrashAvoid(rj))
+            {
+                CrashAvoid(ri);
+                is_collision_robot[ri] = true;
+            }
+            else
+            {
+                is_collision_robot[rj] = true;
+            }
+        }
+        else
+        { // 只有他冲突过
+            if (!CrashAvoid(ri))
+            {
+                CrashAvoid(rj);
+                is_collision_robot[rj] = true;
+            }
+            else
+            {
+                is_collision_robot[ri] = true;
+            }
+        }
+    }
+    else
+    { // 别人没拿我拿了，别人让
+        if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
+        { // 若都有/都没有碰撞过
+            if (!CrashAvoid(rj))
+            {
+                CrashAvoid(ri);
+                is_collision_robot[ri] = true;
+            }
+            else
+            {
+                is_collision_robot[rj] = true;
+            }
+        }
+        else if (is_collision_robot[ri])
+        { // 只有我有冲突过
+            if (!CrashAvoid(rj))
+            {
+                CrashAvoid(ri);
+                is_collision_robot[ri] = true;
+            }
+            else
+            {
+                is_collision_robot[rj] = true;
+            }
+        }
+        else
+        { // 只有他冲突过
+            if (!CrashAvoid(ri))
+            {
+                CrashAvoid(rj);
+                is_collision_robot[rj] = true;
+            }
+            else
+            {
+                is_collision_robot[ri] = true;
+            }
+        }
+    }
+}
+
+// 抢位让位函数
+void RushPosisionAvoid(int ri, int rj, bool (&is_collision_robot)[ROBOT_NUM])
+{
+    if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
+    { // 若都有/都没有碰撞过
+        // 有货物的优先走，另一个停下
+        if (Robots[ri].is_goods && !Robots[rj].is_goods)
+        {
+            Robots[rj].dir = -1;
+            is_collision_robot[rj] = true;
+        }
+        else if (Robots[rj].is_goods && !Robots[ri].is_goods)
+        {
+            Robots[ri].dir = -1;
+            is_collision_robot[ri] = true;
+        }
+        // 都有货物或者都没有货物则比较性价比
+        else if (Robots[ri].is_goods && Robots[rj].is_goods)
+        {
+            if (GetGoodsRobotsCompair(ri, rj))
+            { // 我拿的好，别人停
+                Robots[rj].dir = -1;
+                is_collision_robot[rj] = true;
+            }
+            else
+            { // 别人拿的好，我停
+                Robots[ri].dir = -1;
+                is_collision_robot[ri] = true;
+            }
+        }
+        else
+        {
+            if (NoGoodsRobotsCompair(ri, rj))
+            { // 我要拿的好，别人停
+                Robots[rj].dir = -1;
+                is_collision_robot[rj] = true;
+            }
+            else
+            { // 别人要拿的好，我停
+                Robots[ri].dir = -1;
+                is_collision_robot[ri] = true;
+            }
+        }
+    }
+    else if (is_collision_robot[ri])
+    { // 只有我有冲突过
+        Robots[rj].dir = -1;
+        is_collision_robot[rj] = true;
+    }
+    else
+    { // 只有他有冲突过
+        Robots[ri].dir = -1;
+        is_collision_robot[ri] = true;
+    }
+}
+
 // FILE *file;
 // 碰撞检测与规避
 void AvoidCollision()
 {
-
-    // if (Frame == 13445)
-    // {
-    //     file = fopen("debug.txt", "w");
-    //     // 将用户输入的内容写入文件
-    //     if (file != NULL)
-    //     {
-    //         fprintf(file, "13445 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
-    //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
-    //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
-    //     }
-    // }
-    // if (Frame == 13446)
-    // {
-    //     // 将用户输入的内容写入文件
-    //     if (file != NULL)
-    //     {
-    //         fprintf(file, "13446 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
-    //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
-    //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
-    //     }
-    // }
     bool is_collision = true;                     // 本次是否有碰撞
     int detect_num = 0;                           // 检测的次数
     bool is_collision_robot[ROBOT_NUM] = {false}; // 对每个机器人判断本轮是否有冲突
@@ -1158,16 +1384,6 @@ void AvoidCollision()
                                     is_collision_robot[rj] = true;
                                 }
                             }
-                            // if (Frame == 13446 && rj == 9)
-                            // {
-                            //     // 将用户输入的内容写入文件
-                            //     if (file != NULL)
-                            //     {
-                            //         fprintf(file, "ri: %d\n", ri);
-                            //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index, is_collision_robot[4]);
-                            //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index, is_collision_robot[9]);
-                            //     }
-                            // }
                             break;
                         }
                         // 碰上移动的机器人j
@@ -1179,270 +1395,45 @@ void AvoidCollision()
                             if (Robots[rj].x == nx_ri && Robots[rj].y == ny_ri && Robots[ri].x == nx_rj && Robots[ri].y == ny_rj)
                             {
                                 is_collision = true;
-                                // 性价比低的机器人避让（优先让两边，实在不行往后面退，再不行就让性价比高的让）
-                                if (Robots[ri].is_goods && Robots[rj].is_goods)
-                                { // 都拿物品
-                                    if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
-                                    { // 若都有/都没有碰撞过
-                                        if (GetGoodsRobotsCompair(ri, rj))
-                                        { // 我拿的好
-                                            if (!CrashAvoid(rj))
-                                            {
-                                                CrashAvoid(ri);
-                                                is_collision_robot[ri] = true;
-                                            }
-                                            else
-                                            {
-                                                is_collision_robot[rj] = true;
-                                            }
-                                        }
-                                        else
-                                        { // 别人拿的好
-                                            if (!CrashAvoid(ri))
-                                            {
-                                                CrashAvoid(rj);
-                                                is_collision_robot[rj] = true;
-                                            }
-                                            else
-                                            {
-                                                is_collision_robot[ri] = true;
-                                            }
-                                        }
-                                    }
-                                    else if (is_collision_robot[ri])
-                                    { // 只有我有冲突过
-                                        if (!CrashAvoid(rj))
-                                        {
-                                            CrashAvoid(ri);
-                                            is_collision_robot[ri] = true;
-                                        }
-                                        else
-                                        {
-                                            is_collision_robot[rj] = true;
-                                        }
-                                    }
-                                    else
-                                    { // 只有他冲突过
-                                        if (!CrashAvoid(ri))
-                                        {
-                                            CrashAvoid(rj);
-                                            is_collision_robot[rj] = true;
-                                        }
-                                        else
-                                        {
-                                            is_collision_robot[ri] = true;
-                                        }
-                                    }
-                                }
-                                else if (!Robots[ri].is_goods && !Robots[rj].is_goods)
-                                { // 都没拿物品
-                                    if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
-                                    { // 若都有/都没有碰撞过
-                                        if (NoGoodsRobotsCompair(ri, rj))
-                                        { // 我拿的好
-                                            if (!CrashAvoid(rj))
-                                            {
-                                                CrashAvoid(ri);
-                                                is_collision_robot[ri] = true;
-                                            }
-                                            else
-                                            {
-                                                is_collision_robot[rj] = true;
-                                            }
-                                        }
-                                        else
-                                        { // 别人拿的好
-                                            if (!CrashAvoid(ri))
-                                            {
-                                                CrashAvoid(rj);
-                                                is_collision_robot[rj] = true;
-                                            }
-                                            else
-                                            {
-                                                is_collision_robot[ri] = true;
-                                            }
-                                        }
-                                    }
-                                    else if (is_collision_robot[ri])
-                                    { // 只有我有冲突过
-                                        if (!CrashAvoid(rj))
-                                        {
-                                            CrashAvoid(ri);
-                                            is_collision_robot[ri] = true;
-                                        }
-                                        else
-                                        {
-                                            is_collision_robot[rj] = true;
-                                        }
-                                    }
-                                    else
-                                    { // 只有他冲突过
-                                        if (!CrashAvoid(ri))
-                                        {
-                                            CrashAvoid(rj);
-                                            is_collision_robot[rj] = true;
-                                        }
-                                        else
-                                        {
-                                            is_collision_robot[ri] = true;
-                                        }
-                                    }
-                                }
-                                else if (!Robots[ri].is_goods && Robots[rj].is_goods)
-                                { // 我没拿别人拿了，我让，ri优先让两边
-                                    if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
-                                    { // 若都有/都没有碰撞过
-                                        if (!CrashAvoid(ri))
-                                        {
-                                            CrashAvoid(rj);
-                                            is_collision_robot[rj] = true;
-                                        }
-                                        else
-                                        {
-                                            is_collision_robot[ri] = true;
-                                        }
-                                    }
-                                    else if (is_collision_robot[ri])
-                                    { // 只有我有冲突过
-                                        if (!CrashAvoid(rj))
-                                        {
-                                            CrashAvoid(ri);
-                                            is_collision_robot[ri] = true;
-                                        }
-                                        else
-                                        {
-                                            is_collision_robot[rj] = true;
-                                        }
-                                    }
-                                    else
-                                    { // 只有他冲突过
-                                        if (!CrashAvoid(ri))
-                                        {
-                                            CrashAvoid(rj);
-                                            is_collision_robot[rj] = true;
-                                        }
-                                        else
-                                        {
-                                            is_collision_robot[ri] = true;
-                                        }
-                                    }
-                                }
-                                else
-                                { // 别人没拿我拿了，别人让
-                                    if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
-                                    { // 若都有/都没有碰撞过
-                                        if (!CrashAvoid(rj))
-                                        {
-                                            CrashAvoid(ri);
-                                            is_collision_robot[ri] = true;
-                                        }
-                                        else
-                                        {
-                                            is_collision_robot[rj] = true;
-                                        }
-                                    }
-                                    else if (is_collision_robot[ri])
-                                    { // 只有我有冲突过
-                                        if (!CrashAvoid(rj))
-                                        {
-                                            CrashAvoid(ri);
-                                            is_collision_robot[ri] = true;
-                                        }
-                                        else
-                                        {
-                                            is_collision_robot[rj] = true;
-                                        }
-                                    }
-                                    else
-                                    { // 只有他冲突过
-                                        if (!CrashAvoid(ri))
-                                        {
-                                            CrashAvoid(rj);
-                                            is_collision_robot[rj] = true;
-                                        }
-                                        else
-                                        {
-                                            is_collision_robot[ri] = true;
-                                        }
-                                    }
-                                }
-                                // if (Frame == 13446 && rj == 9)
-                                // {
-                                //     // 将用户输入的内容写入文件
-                                //     if (file != NULL)
-                                //     {
-                                //         fprintf(file, "ri: %d\n", ri);
-                                //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index, is_collision_robot[4]);
-                                //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index, is_collision_robot[9]);
-                                //     }
-                                // }
+                                HedgeAvoid(ri, rj, is_collision_robot);
                                 break;
                             }
                             // 抢位
                             if (nx_ri == nx_rj && ny_ri == ny_rj)
                             {
                                 is_collision = true;
-                                if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
-                                { // 若都有/都没有碰撞过
-                                    // 有货物的优先走，另一个停下
-                                    if (Robots[ri].is_goods && !Robots[rj].is_goods)
+
+                                // 判断中间有没有机器人
+                                int rk = 0;
+                                for (rk = 0; rk < ROBOT_NUM; rk++)
+                                {
+                                    if (Robots[rk].x == nx_ri && Robots[rk].y == ny_ri)
                                     {
-                                        Robots[rj].dir = -1;
-                                        is_collision_robot[rj] = true;
+                                        break;
                                     }
-                                    else if (Robots[rj].is_goods && !Robots[ri].is_goods)
-                                    {
-                                        Robots[ri].dir = -1;
-                                        is_collision_robot[ri] = true;
+                                }
+                                if (rk < ROBOT_NUM)
+                                {                                                  // 有机器人
+                                    int nx_rk = Robots[rk].x + DX[Robots[rk].dir]; // rk下一步位置
+                                    int ny_rk = Robots[rk].y + DY[Robots[rk].dir];
+
+                                    if (Robots[rk].x == nx_ri && Robots[rk].y == ny_ri && Robots[ri].x == nx_rk && Robots[ri].y == ny_rk)
+                                    { // k和i对冲
+                                      HedgeAvoid(ri, rk, is_collision_robot);
                                     }
-                                    // 都有货物或者都没有货物则比较性价比
-                                    else if (Robots[ri].is_goods && Robots[rj].is_goods)
-                                    {
-                                        if (GetGoodsRobotsCompair(ri, rj))
-                                        { // 我拿的好，别人停
-                                            Robots[rj].dir = -1;
-                                            is_collision_robot[rj] = true;
-                                        }
-                                        else
-                                        { // 别人拿的好，我停
-                                            Robots[ri].dir = -1;
-                                            is_collision_robot[ri] = true;
-                                        }
+                                    else if (Robots[rk].x == nx_rj && Robots[rk].y == ny_rj && Robots[rj].x == nx_rk && Robots[rj].y == ny_rk)
+                                    { // k和j对冲
+                                      HedgeAvoid(rj, rk, is_collision_robot);
                                     }
                                     else
-                                    {
-                                        if (NoGoodsRobotsCompair(ri, rj))
-                                        { // 我要拿的好，别人停
-                                            Robots[rj].dir = -1;
-                                            is_collision_robot[rj] = true;
-                                        }
-                                        else
-                                        { // 别人要拿的好，我停
-                                            Robots[ri].dir = -1;
-                                            is_collision_robot[ri] = true;
-                                        }
+                                    { // k都不对冲，判断i,j抢位
+                                      RushPosisionAvoid(ri, rj, is_collision_robot);
                                     }
                                 }
-                                else if (is_collision_robot[ri])
-                                { // 只有我有冲突过
-                                    Robots[rj].dir = -1;
-                                    is_collision_robot[rj] = true;
-                                }
                                 else
-                                { // 只有他有冲突过
-                                    Robots[ri].dir = -1;
-                                    is_collision_robot[ri] = true;
+                                { // 没机器人，判断i，j抢位
+                                   RushPosisionAvoid(ri, rj, is_collision_robot);
                                 }
-                                // if (Frame == 13446 && rj == 9)
-                                // {
-                                //     // 将用户输入的内容写入文件
-                                //     if (file != NULL)
-                                //     {
-                                //         fprintf(file, "ri: %d\n", ri);
-                                //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index, is_collision_robot[4]);
-                                //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index, is_collision_robot[9]);
-                                //     }
-                                // }
                                 break;
                             }
                         }
@@ -1461,27 +1452,6 @@ void AvoidCollision()
             break;
         }
     }
-    // if (Frame == 13445)
-    // {
-    //     // 将用户输入的内容写入文件
-    //     if (file != NULL)
-    //     {
-    //         fprintf(file, "13445 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
-    //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
-    //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
-    //     }
-    // }
-    // if (Frame == 13446)
-    // {
-    //     // 将用户输入的内容写入文件
-    //     if (file != NULL)
-    //     {
-    //         fprintf(file, "13446 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
-    //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
-    //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
-    //     }
-    //     fclose(file);
-    // }
 }
 
 // 打印机器人指令
@@ -1982,79 +1952,446 @@ int main()
 //         }
 //     }
 // }
+// void AvoidCollision()
+// {
 
-// if (Berths[i].goods_queue.size() + add_goods_num < BoatCapacity)
-// { // 如果货很少，就全装走
-//     time_first = (Berths[i].goods_queue.size() + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
-//     time_second = add_goods_num / Berths[i].loading_speed;
-//     // 先加已有的总价值
-//     queue<int> tmp = Berths[i].goods_queue;
-//     while (!tmp.empty())
+//     // if (Frame == 13445)
+//     // {
+//     //     file = fopen("debug.txt", "w");
+//     //     // 将用户输入的内容写入文件
+//     //     if (file != NULL)
+//     //     {
+//     //         fprintf(file, "13445 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
+//     //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
+//     //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
+//     //     }
+//     // }
+//     // if (Frame == 13446)
+//     // {
+//     //     // 将用户输入的内容写入文件
+//     //     if (file != NULL)
+//     //     {
+//     //         fprintf(file, "13446 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
+//     //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
+//     //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
+//     //     }
+//     // }
+//     bool is_collision = true;                     // 本次是否有碰撞
+//     int detect_num = 0;                           // 检测的次数
+//     bool is_collision_robot[ROBOT_NUM] = {false}; // 对每个机器人判断本轮是否有冲突
+//     while (is_collision)
 //     {
-//         berth_all_value += AllGoods[tmp.front()].val;
-//         tmp.pop();
-//     }
-//     // 再加估算的价值
-//     berth_all_value += (add_goods_num * 100);
-// }
-// else
-// { // 如果已有的货物量大于容量，则装满
-//     int loaded_goods_num = 0;
-//     queue<int> tmp = Berths[i].goods_queue;
-//     while (!tmp.empty())
-//     {
-//         berth_all_value += AllGoods[tmp.front()].val;
-//         tmp.pop();
-//         loaded_goods_num++;
-//         if (loaded_goods_num >= BoatCapacity)
-//         { // 已经装满了
+//         detect_num++;
+//         is_collision = false;
+//         // 对每个机器人进行碰撞检测
+//         for (int ri = 0; ri < ROBOT_NUM; ri++)
+//         {
+//             // 如果这个机器人没有被困死并且下一步会移动（对于每个机器人只考虑主动碰撞，如果是被碰，会被其他机器人主动碰）
+//             if (Robots[ri].is_dead == 0 && Robots[ri].dir >= 0)
+//             {
+//                 // 机器人i下一步的位置
+//                 int nx_ri = Robots[ri].x + DX[Robots[ri].dir];
+//                 int ny_ri = Robots[ri].y + DY[Robots[ri].dir];
+//                 // 检测除自己之外其他机器人会不会在这个位置上
+//                 // （不移动的机器人看当前位置，会移动的机器人分析是对冲还是抢位置）
+//                 for (int rj = 0; rj < ROBOT_NUM; rj++)
+//                 {
+//                     if (ri != rj)
+//                     {
+//                         // 碰上不移动的机器人j
+//                         if (Robots[rj].dir < 0 && Robots[rj].x == nx_ri && Robots[rj].y == ny_ri)
+//                         {
+//                             is_collision = true;
+//                             // ？若不动的处于恢复状态，我垂直移动，不行我就罚站
+//                             if (Robots[rj].status == 0)
+//                             {
+//                                 if (!CrashAvoid(ri))
+//                                 {
+//                                     Robots[ri].dir = -1;
+//                                 };
+//                                 is_collision_robot[ri] = true;
+//                             }
+//                             // 若不动的只是在罚站，他垂直移动
+//                             else
+//                             {
+//                                 if (is_collision_robot[ri] && is_collision_robot[rj])
+//                                 {                   // 若都有碰撞过
+//                                     CrashAvoid(rj); // 他垂直移动
+//                                     is_collision_robot[rj] = true;
+//                                 }
+//                                 else if (is_collision_robot[ri])
+//                                 {                   // 若我有碰撞过
+//                                     CrashAvoid(rj); // 他垂直移动
+//                                     is_collision_robot[rj] = true;
+//                                 }
+//                                 else if (is_collision_robot[rj])
+//                                 {                   // 若他有碰撞过
+//                                     CrashAvoid(ri); // 我垂直移动
+//                                     is_collision_robot[ri] = true;
+//                                 }
+//                                 else
+//                                 {                   // 若都没有碰撞过
+//                                     CrashAvoid(rj); // 他垂直移动
+//                                     is_collision_robot[rj] = true;
+//                                 }
+//                             }
+//                             // if (Frame == 13446 && rj == 9)
+//                             // {
+//                             //     // 将用户输入的内容写入文件
+//                             //     if (file != NULL)
+//                             //     {
+//                             //         fprintf(file, "ri: %d\n", ri);
+//                             //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index, is_collision_robot[4]);
+//                             //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index, is_collision_robot[9]);
+//                             //     }
+//                             // }
+//                             break;
+//                         }
+//                         // 碰上移动的机器人j
+//                         if (Robots[rj].dir >= 0)
+//                         {
+//                             int nx_rj = Robots[rj].x + DX[Robots[rj].dir];
+//                             int ny_rj = Robots[rj].y + DY[Robots[rj].dir];
+//                             // 对冲
+//                             if (Robots[rj].x == nx_ri && Robots[rj].y == ny_ri && Robots[ri].x == nx_rj && Robots[ri].y == ny_rj)
+//                             {
+//                                 is_collision = true;
+//                                 // // 性价比低的机器人避让（优先让两边，实在不行往后面退，再不行就让性价比高的让）
+//                                 // if (Robots[ri].is_goods && Robots[rj].is_goods)
+//                                 // { // 都拿物品
+//                                 //     if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
+//                                 //     { // 若都有/都没有碰撞过
+//                                 //         if (GetGoodsRobotsCompair(ri, rj))
+//                                 //         { // 我拿的好
+//                                 //             if (!CrashAvoid(rj))
+//                                 //             {
+//                                 //                 CrashAvoid(ri);
+//                                 //                 is_collision_robot[ri] = true;
+//                                 //             }
+//                                 //             else
+//                                 //             {
+//                                 //                 is_collision_robot[rj] = true;
+//                                 //             }
+//                                 //         }
+//                                 //         else
+//                                 //         { // 别人拿的好
+//                                 //             if (!CrashAvoid(ri))
+//                                 //             {
+//                                 //                 CrashAvoid(rj);
+//                                 //                 is_collision_robot[rj] = true;
+//                                 //             }
+//                                 //             else
+//                                 //             {
+//                                 //                 is_collision_robot[ri] = true;
+//                                 //             }
+//                                 //         }
+//                                 //     }
+//                                 //     else if (is_collision_robot[ri])
+//                                 //     { // 只有我有冲突过
+//                                 //         if (!CrashAvoid(rj))
+//                                 //         {
+//                                 //             CrashAvoid(ri);
+//                                 //             is_collision_robot[ri] = true;
+//                                 //         }
+//                                 //         else
+//                                 //         {
+//                                 //             is_collision_robot[rj] = true;
+//                                 //         }
+//                                 //     }
+//                                 //     else
+//                                 //     { // 只有他冲突过
+//                                 //         if (!CrashAvoid(ri))
+//                                 //         {
+//                                 //             CrashAvoid(rj);
+//                                 //             is_collision_robot[rj] = true;
+//                                 //         }
+//                                 //         else
+//                                 //         {
+//                                 //             is_collision_robot[ri] = true;
+//                                 //         }
+//                                 //     }
+//                                 // }
+//                                 // else if (!Robots[ri].is_goods && !Robots[rj].is_goods)
+//                                 // { // 都没拿物品
+//                                 //     if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
+//                                 //     { // 若都有/都没有碰撞过
+//                                 //         if (NoGoodsRobotsCompair(ri, rj))
+//                                 //         { // 我拿的好
+//                                 //             if (!CrashAvoid(rj))
+//                                 //             {
+//                                 //                 CrashAvoid(ri);
+//                                 //                 is_collision_robot[ri] = true;
+//                                 //             }
+//                                 //             else
+//                                 //             {
+//                                 //                 is_collision_robot[rj] = true;
+//                                 //             }
+//                                 //         }
+//                                 //         else
+//                                 //         { // 别人拿的好
+//                                 //             if (!CrashAvoid(ri))
+//                                 //             {
+//                                 //                 CrashAvoid(rj);
+//                                 //                 is_collision_robot[rj] = true;
+//                                 //             }
+//                                 //             else
+//                                 //             {
+//                                 //                 is_collision_robot[ri] = true;
+//                                 //             }
+//                                 //         }
+//                                 //     }
+//                                 //     else if (is_collision_robot[ri])
+//                                 //     { // 只有我有冲突过
+//                                 //         if (!CrashAvoid(rj))
+//                                 //         {
+//                                 //             CrashAvoid(ri);
+//                                 //             is_collision_robot[ri] = true;
+//                                 //         }
+//                                 //         else
+//                                 //         {
+//                                 //             is_collision_robot[rj] = true;
+//                                 //         }
+//                                 //     }
+//                                 //     else
+//                                 //     { // 只有他冲突过
+//                                 //         if (!CrashAvoid(ri))
+//                                 //         {
+//                                 //             CrashAvoid(rj);
+//                                 //             is_collision_robot[rj] = true;
+//                                 //         }
+//                                 //         else
+//                                 //         {
+//                                 //             is_collision_robot[ri] = true;
+//                                 //         }
+//                                 //     }
+//                                 // }
+//                                 // else if (!Robots[ri].is_goods && Robots[rj].is_goods)
+//                                 // { // 我没拿别人拿了，我让，ri优先让两边
+//                                 //     if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
+//                                 //     { // 若都有/都没有碰撞过
+//                                 //         if (!CrashAvoid(ri))
+//                                 //         {
+//                                 //             CrashAvoid(rj);
+//                                 //             is_collision_robot[rj] = true;
+//                                 //         }
+//                                 //         else
+//                                 //         {
+//                                 //             is_collision_robot[ri] = true;
+//                                 //         }
+//                                 //     }
+//                                 //     else if (is_collision_robot[ri])
+//                                 //     { // 只有我有冲突过
+//                                 //         if (!CrashAvoid(rj))
+//                                 //         {
+//                                 //             CrashAvoid(ri);
+//                                 //             is_collision_robot[ri] = true;
+//                                 //         }
+//                                 //         else
+//                                 //         {
+//                                 //             is_collision_robot[rj] = true;
+//                                 //         }
+//                                 //     }
+//                                 //     else
+//                                 //     { // 只有他冲突过
+//                                 //         if (!CrashAvoid(ri))
+//                                 //         {
+//                                 //             CrashAvoid(rj);
+//                                 //             is_collision_robot[rj] = true;
+//                                 //         }
+//                                 //         else
+//                                 //         {
+//                                 //             is_collision_robot[ri] = true;
+//                                 //         }
+//                                 //     }
+//                                 // }
+//                                 // else
+//                                 // { // 别人没拿我拿了，别人让
+//                                 //     if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
+//                                 //     { // 若都有/都没有碰撞过
+//                                 //         if (!CrashAvoid(rj))
+//                                 //         {
+//                                 //             CrashAvoid(ri);
+//                                 //             is_collision_robot[ri] = true;
+//                                 //         }
+//                                 //         else
+//                                 //         {
+//                                 //             is_collision_robot[rj] = true;
+//                                 //         }
+//                                 //     }
+//                                 //     else if (is_collision_robot[ri])
+//                                 //     { // 只有我有冲突过
+//                                 //         if (!CrashAvoid(rj))
+//                                 //         {
+//                                 //             CrashAvoid(ri);
+//                                 //             is_collision_robot[ri] = true;
+//                                 //         }
+//                                 //         else
+//                                 //         {
+//                                 //             is_collision_robot[rj] = true;
+//                                 //         }
+//                                 //     }
+//                                 //     else
+//                                 //     { // 只有他冲突过
+//                                 //         if (!CrashAvoid(ri))
+//                                 //         {
+//                                 //             CrashAvoid(rj);
+//                                 //             is_collision_robot[rj] = true;
+//                                 //         }
+//                                 //         else
+//                                 //         {
+//                                 //             is_collision_robot[ri] = true;
+//                                 //         }
+//                                 //     }
+//                                 // }
+//                                 // if (Frame == 13446 && rj == 9)
+//                                 // {
+//                                 //     // 将用户输入的内容写入文件
+//                                 //     if (file != NULL)
+//                                 //     {
+//                                 //         fprintf(file, "ri: %d\n", ri);
+//                                 //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index, is_collision_robot[4]);
+//                                 //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index, is_collision_robot[9]);
+//                                 //     }
+//                                 // }
+//                                 // break;
+//                                 HedgeAvoid(ri, rj, is_collision_robot);
+//                                 break;
+//                             }
+//                             // 抢位
+//                             if (nx_ri == nx_rj && ny_ri == ny_rj)
+//                             {
+//                                 is_collision = true;
+
+//                                 // 判断中间有没有机器人
+//                                 int rk = 0;
+//                                 for (rk = 0; rk < ROBOT_NUM; rk++)
+//                                 {
+//                                     if (Robots[rk].x == nx_ri && Robots[rk].y == ny_ri)
+//                                     {
+//                                         break;
+//                                     }
+//                                 }
+//                                 if (rk < ROBOT_NUM)
+//                                 {                                                  // 有机器人
+//                                     int nx_rk = Robots[rk].x + DX[Robots[rk].dir]; // rk下一步位置
+//                                     int ny_rk = Robots[rk].y + DY[Robots[rk].dir];
+
+//                                     if (Robots[rk].x == nx_ri && Robots[rk].y == ny_ri && Robots[ri].x == nx_rk && Robots[ri].y == ny_rk)
+//                                     { // k和i对冲
+//                                       HedgeAvoid(ri, rk, is_collision_robot);
+//                                     }
+//                                     else if (Robots[rk].x == nx_rj && Robots[rk].y == ny_rj && Robots[rj].x == nx_rk && Robots[rj].y == ny_rk)
+//                                     { // k和j对冲
+//                                       HedgeAvoid(rj, rk, is_collision_robot);
+//                                     }
+//                                     else
+//                                     { // k都不对冲，判断i,j抢位
+//                                       RushPosisionAvoid(ri, rj, is_collision_robot);
+//                                     }
+//                                 }
+//                                 else
+//                                 { // 没机器人，判断i，j抢位
+//                                    RushPosisionAvoid(ri, rj, is_collision_robot);
+//                                 }
+//                                 break;
+
+//                                 // if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
+//                                 // { // 若都有/都没有碰撞过
+//                                 //     // 有货物的优先走，另一个停下
+//                                 //     if (Robots[ri].is_goods && !Robots[rj].is_goods)
+//                                 //     {
+//                                 //         Robots[rj].dir = -1;
+//                                 //         is_collision_robot[rj] = true;
+//                                 //     }
+//                                 //     else if (Robots[rj].is_goods && !Robots[ri].is_goods)
+//                                 //     {
+//                                 //         Robots[ri].dir = -1;
+//                                 //         is_collision_robot[ri] = true;
+//                                 //     }
+//                                 //     // 都有货物或者都没有货物则比较性价比
+//                                 //     else if (Robots[ri].is_goods && Robots[rj].is_goods)
+//                                 //     {
+//                                 //         if (GetGoodsRobotsCompair(ri, rj))
+//                                 //         { // 我拿的好，别人停
+//                                 //             Robots[rj].dir = -1;
+//                                 //             is_collision_robot[rj] = true;
+//                                 //         }
+//                                 //         else
+//                                 //         { // 别人拿的好，我停
+//                                 //             Robots[ri].dir = -1;
+//                                 //             is_collision_robot[ri] = true;
+//                                 //         }
+//                                 //     }
+//                                 //     else
+//                                 //     {
+//                                 //         if (NoGoodsRobotsCompair(ri, rj))
+//                                 //         { // 我要拿的好，别人停
+//                                 //             Robots[rj].dir = -1;
+//                                 //             is_collision_robot[rj] = true;
+//                                 //         }
+//                                 //         else
+//                                 //         { // 别人要拿的好，我停
+//                                 //             Robots[ri].dir = -1;
+//                                 //             is_collision_robot[ri] = true;
+//                                 //         }
+//                                 //     }
+//                                 // }
+//                                 // else if (is_collision_robot[ri])
+//                                 // { // 只有我有冲突过
+//                                 //     Robots[rj].dir = -1;
+//                                 //     is_collision_robot[rj] = true;
+//                                 // }
+//                                 // else
+//                                 // { // 只有他有冲突过
+//                                 //     Robots[ri].dir = -1;
+//                                 //     is_collision_robot[ri] = true;
+//                                 // }
+//                                 // if (Frame == 13446 && rj == 9)
+//                                 // {
+//                                 //     // 将用户输入的内容写入文件
+//                                 //     if (file != NULL)
+//                                 //     {
+//                                 //         fprintf(file, "ri: %d\n", ri);
+//                                 //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index, is_collision_robot[4]);
+//                                 //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index, is_collision_robot[9]);
+//                                 //     }
+//                                 // }
+//                             }
+//                         }
+//                     }
+//                 }
+//                 // 如果有碰撞并且规避了，就跳出，需要重新检测碰撞
+//                 if (is_collision)
+//                 {
+//                     break;
+//                 }
+//             }
+//         }
+//         // 检测100次就不检测了
+//         if (detect_num >= 100)
+//         {
 //             break;
 //         }
 //     }
-//     time_first = (loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
-//     time_second = 0;
-//     if (tmp.empty())
-//     { // 说明之前的全部装完了，装我估算的
-//         time_second += ((BoatCapacity - loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed);
-//         berth_all_value += ((BoatCapacity - loaded_goods_num) * 100);
-//     }
-// }
-// // 模拟该船装货物
-// int time_first = 0;
-// double time_second = 0;
-// if ((int)Berths[i].goods_queue.size() + add_goods_num < BoatCapacity - Boats[boat_index].goods_num)
-// { // 如果货很少，就全装走
-//     time_first = ((int)Berths[i].goods_queue.size() + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
-//     time_second = add_goods_num / Berths[i].loading_speed;
-//     // 先加已有的总价值
-//     queue<int> tmp = Berths[i].goods_queue;
-//     while (!tmp.empty())
-//     {
-//         berth_all_value += AllGoods[tmp.front()].val;
-//         tmp.pop();
-//     }
-//     // 再加估算的价值
-//     berth_all_value += (add_goods_num * 100);
-// }
-// else
-// { // 如果已有的货物量大于容量，则装满
-//     int loaded_goods_num = 0;
-//     queue<int> tmp = Berths[i].goods_queue;
-//     while (!tmp.empty())
-//     {
-//         if (loaded_goods_num >= BoatCapacity - Boats[boat_index].goods_num)
-//         { // 已经装满了
-//             break;
-//         }
-//         berth_all_value += AllGoods[tmp.front()].val;
-//         tmp.pop();
-//         loaded_goods_num++;
-//     }
-//     time_first = (loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
-//     time_second = 0;
-//     if (tmp.empty())
-//     { // 说明之前的全部装完了，装我估算的
-//         time_second += ((BoatCapacity - Boats[boat_index].goods_num - loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed);
-//         berth_all_value += ((BoatCapacity - Boats[boat_index].goods_num - loaded_goods_num) * 100);
-//     }
+//     // if (Frame == 13445)
+//     // {
+//     //     // 将用户输入的内容写入文件
+//     //     if (file != NULL)
+//     //     {
+//     //         fprintf(file, "13445 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
+//     //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
+//     //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
+//     //     }
+//     // }
+//     // if (Frame == 13446)
+//     // {
+//     //     // 将用户输入的内容写入文件
+//     //     if (file != NULL)
+//     //     {
+//     //         fprintf(file, "13446 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
+//     //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
+//     //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
+//     //     }
+//     //     fclose(file);
+//     // }
 // }
