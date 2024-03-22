@@ -898,11 +898,77 @@ struct Road
     }
 };
 
+// 机器人多线程BFS
+void RobotBFSToGoods(int ri, priority_queue<Road, vector<Road>, Road::Comparator> &roads_pq, mutex &roads_pq_mutex)
+{
+    int robot_x = Robots[ri].x;
+    int robot_y = Robots[ri].y;
+    // 定义BFS最短路径及长度，坐标值以及队列
+    vector<vector<int>> goods_path(200, vector<int>(200, -1));
+    vector<vector<int>> goods_path_length(200, vector<int>(200, -1));
+    queue<pair<int, int>> q;
+    int ri_road_num = 0;
+
+    q.push({robot_x, robot_y});
+    goods_path_length[robot_x][robot_y] = 0;
+    while (!q.empty())
+    {
+        // 从队列中取出一个点
+        pair<int, int> cur_pos = q.front();
+        q.pop();
+
+        int goods_id = IsOnGoods(cur_pos.first, cur_pos.second);
+        int cur_path_length = goods_path_length[cur_pos.first][cur_pos.second];
+        if (goods_id >= 0)
+        { // 如果现在的位置有物品
+            if (Frame - AllGoods[goods_id].refresh_frame >= 1000)
+            { // 该物品已消失
+                World[cur_pos.first][cur_pos.second] = 0;
+            }
+            else if (cur_path_length < (1000 - (Frame - AllGoods[goods_id].refresh_frame)))
+            { // 机器人到物品处时商品未消失, 计算最近港口和性价比，并将路径加入
+                int to_berth_index = -1;
+                double value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index);
+                {
+                    lock_guard<mutex> lock(roads_pq_mutex); // 锁住互斥锁
+                    roads_pq.push(Road(ri, goods_id, cur_path_length, to_berth_index, goods_path[cur_pos.first][cur_pos.second], value));
+                }
+                ri_road_num++;
+            }
+        }
+        // 限制搜索的范围以控制时间
+        if (cur_path_length >= MAX_ROAD_LEN || ri_road_num > MAX_ROAD_NUM)
+        {
+            break;
+        }
+        // 四个方向随机遍历
+        for (int i = 0; i < 4; i++)
+        { // 遍历到下一个点
+            int dir = (ri + i) % 4;
+            int nx = cur_pos.first + DX[dir];
+            int ny = cur_pos.second + DY[dir];
+            if (IsValid(nx, ny) && goods_path_length[nx][ny] < 0)
+            { // 判断该点是否可以到达(没有越界&&为空地或者泊位&&之前没有到达过)
+                // 路径长度+1
+                goods_path_length[nx][ny] = cur_path_length + 1;
+                if (cur_path_length == 0)
+                { // 记录路径的方向(只记录路径第一步的方向)
+                    goods_path[nx][ny] = dir;
+                }
+                else
+                {
+                    goods_path[nx][ny] = goods_path[cur_pos.first][cur_pos.second];
+                }
+                // 将该点加入队列
+                q.push({nx, ny});
+            }
+        }
+    }
+}
+
 // 机器人调度
 void RobotDsipatchGreedy()
 {
-    // 维护一个Road优先队列，每次找一条最有价值的路径匹配
-    priority_queue<Road, std::vector<Road>, Road::Comparator> roads_pq;
     vector<int> robots_match(ROBOT_NUM, 0); // 机器人是否匹配
     set<int> goods_match;                   // 被匹配的商品
     int robot_match_num = 0;                // 被匹配的机器人数
@@ -935,85 +1001,38 @@ void RobotDsipatchGreedy()
                 // int berth_id = -1;
                 if (berth_id == -1)
                 { // 没标记
-                    robot_match_num++;
-                    robots_match[ri] = 1;
                     Robots[ri].dir = PsbDirToBerth(Robots[ri].berth_index, Robots[ri].x, Robots[ri].y);
                 }
                 else
-                { // 有标记
-                    robot_match_num++;
-                    robots_match[ri] = 1;
+                {                                      // 有标记
                     Robots[ri].berth_index = berth_id; // 重置要去港口号
                     // Robots[ri].goods_distance = BerthPathLenth[berth_id][Robots[ri].x][Robots[ri].y]; // 重置机器人路程
                     Robots[ri].dir = PsbDirToBerth(Robots[ri].berth_index, Robots[ri].x, Robots[ri].y); // 重置机器人方向
                 }
-
+                robot_match_num++;
+                robots_match[ri] = 1;
                 continue;
             }
         }
+    }
 
-        // 以上情况之外，其他机器人都要BFS找货物
-        int robot_x = Robots[ri].x;
-        int robot_y = Robots[ri].y;
-        // 定义BFS最短路径及长度，坐标值以及队列
-        vector<vector<int>> goods_path(200, vector<int>(200, -1));
-        vector<vector<int>> goods_path_length(200, vector<int>(200, -1));
-        queue<pair<int, int>> q;
-        int ri_road_num = 0;
-
-        q.push({robot_x, robot_y});
-        goods_path_length[robot_x][robot_y] = 0;
-        while (!q.empty())
+    // 以上情况之外，其他机器人都要BFS找货物(使用多线程)
+    priority_queue<Road, vector<Road>, Road::Comparator> roads_pq; // 维护一个Road优先队列，每次找一条最有价值的路径匹配
+    mutex roads_pq_mutex;                                          // 多线程互斥锁
+    vector<thread> robots_threads;                                 // 线程
+    for (int ri = 0; ri < ROBOT_NUM; ri++)
+    { // 对没有匹配的机器人进行BFS
+        if (robots_match[ri] == 0)
         {
-            // 从队列中取出一个点
-            pair<int, int> cur_pos = q.front();
-            q.pop();
-
-            int goods_id = IsOnGoods(cur_pos.first, cur_pos.second);
-            int cur_path_length = goods_path_length[cur_pos.first][cur_pos.second];
-            if (goods_id >= 0)
-            { // 如果现在的位置有物品
-                if (Frame - AllGoods[goods_id].refresh_frame >= 1000)
-                { // 该物品已消失
-                    World[cur_pos.first][cur_pos.second] = 0;
-                }
-                else if (cur_path_length < (1000 - (Frame - AllGoods[goods_id].refresh_frame)))
-                { // 机器人到物品处时商品未消失, 计算最近港口和性价比，并将路径加入
-                    int to_berth_index = -1;
-                    double value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index);
-                    roads_pq.push(Road(ri, goods_id, cur_path_length, to_berth_index, goods_path[cur_pos.first][cur_pos.second], value));
-                    ri_road_num++;
-                }
-            }
-            // 限制搜索的范围以控制时间
-            if (cur_path_length >= MAX_ROAD_LEN || ri_road_num > MAX_ROAD_NUM)
-            {
-                break;
-            }
-            // 四个方向随机遍历
-            for (int i = 0; i < 4; i++)
-            { // 遍历到下一个点
-                int dir = (ri + i) % 4;
-                int nx = cur_pos.first + DX[dir];
-                int ny = cur_pos.second + DY[dir];
-                if (IsValid(nx, ny) && goods_path_length[nx][ny] < 0)
-                { // 判断该点是否可以到达(没有越界&&为空地或者泊位&&之前没有到达过)
-                    // 路径长度+1
-                    goods_path_length[nx][ny] = cur_path_length + 1;
-                    if (cur_path_length == 0)
-                    { // 记录路径的方向(只记录路径第一步的方向)
-                        goods_path[nx][ny] = dir;
-                    }
-                    else
-                    {
-                        goods_path[nx][ny] = goods_path[cur_pos.first][cur_pos.second];
-                    }
-                    // 将该点加入队列
-                    q.push({nx, ny});
-                }
-            }
+            robots_threads.emplace_back(RobotBFSToGoods, ri, ref(roads_pq), ref(roads_pq_mutex));
         }
     }
+    // 等待所有线程结束
+    for (auto &thread : robots_threads)
+    {
+        thread.join();
+    }
+
     // 开始机器人和物品的匹配
     while (!roads_pq.empty())
     { // 价值最大的路径
@@ -1679,11 +1698,11 @@ int main()
 {
     Init();
 
-    ofstream out_file = CreateFile();
+    // ofstream out_file = CreateFile();
 
     for (int frame = 1; frame <= MAX_FRAME; frame++)
     {
-        Print(out_file, 50);
+        // Print(out_file, 50);
         Input();
         RobotDsipatchGreedy();
         AvoidCollision();
@@ -1695,7 +1714,7 @@ int main()
         fflush(stdout);
     }
 
-    out_file.close(); // 关闭文件
+    // out_file.close(); // 关闭文件
 
     return 0;
 }
