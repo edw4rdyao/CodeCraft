@@ -171,17 +171,18 @@ bool IsValid(int x, int y)
     return x >= 0 && x < N && y >= 0 && y < N && World[x][y] >= 0;
 }
 
-// 判断是否在港口内
-bool IsInBerth(int robot_index)
+// 判断机器人是否在港口内，如果在则返回港口ID，否则返回-1
+int IsInBerth(int robot_index)
 {
-    if (World[Robots[robot_index].x][Robots[robot_index].y] == 3)
+    int berth_id = World[Robots[robot_index].x][Robots[robot_index].y] - 10;
+    if (berth_id >= 0 && berth_id < 10)
     {
-        return true;
+        return berth_id;
     }
-    return false;
+    return -1;
 }
 
-// 判断是否在物品上，如果在则返回物品ID，否则返回-2
+// 判断是否在物品上，如果在则返回物品ID，否则返回-100
 int IsOnGoods(int x, int y)
 {
     int goods_id = World[x][y] - 100;
@@ -278,8 +279,8 @@ void InitInfo()
                 World[i][j] = -2;
             }
             else if (ch == 'B')
-            { // 港口
-                World[i][j] = 3;
+            { // 港口（后面还要更新）
+                World[i][j] = 10;
             }
             else if (ch == 'A')
             { // 机器人(空地)，存下来
@@ -302,6 +303,18 @@ void InitInfo()
         scanf("%d", &id);
         scanf("%d%d%d%d", &Berths[id].x, &Berths[id].y, &Berths[id].transport_time, &Berths[id].loading_speed);
     }
+    // 通过泊位信息再次更新地图（将地图的港口对应的ID写上）
+    for (int i = 0; i < BERTH_NUM; i++)
+    { // 对泊位上的每一个点，更新地图
+        for (int ofsx = 0; ofsx < 4; ofsx++)
+        {
+            for (int ofsy = 0; ofsy < 4; ofsy++)
+            {
+                World[Berths[i].x + ofsx][Berths[i].y + ofsy] = 10 + i;
+            }
+        }
+    }
+
     // 读入船的容量
     scanf("%d", &BoatCapacity);
     // 读入ok
@@ -780,8 +793,21 @@ void LoadGoods()
 // 没拿物品的机器人之间比较要拿物品的性价比
 bool NoGoodsRobotsCompair(int ri, int rj)
 {
-    int goodsi = Robots[ri].goods_index;                                                                                                                         // 机器人i要拿的物品
-    int goodsj = Robots[rj].goods_index;                                                                                                                         // 机器人j要拿的物品
+    int goodsi = Robots[ri].goods_index; // 机器人i要拿的物品
+    int goodsj = Robots[rj].goods_index; // 机器人j要拿的物品
+    // 考虑没拿物品的机器人本身没有匹配到物品（但是在移动）
+    if (goodsi < 0 && goodsj >= 0)
+    { // i没有要拿的物品而j有，则j优先
+        return false;
+    }
+    else if (goodsi >= 0 && goodsj < 0)
+    { // j没有要拿的物品而i有，则i优先
+        return true;
+    }
+    else if (goodsi < 0 && goodsj < 0)
+    { // 都没有要拿的物品则，id大的优先
+        return ri > rj;
+    }
     double ri_val = (double)AllGoods[goodsi].val / (Robots[ri].goods_distance + BerthPathLenth[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
     double rj_val = (double)AllGoods[goodsj].val / (Robots[rj].goods_distance + BerthPathLenth[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
     if (ri_val >= rj_val)
@@ -858,21 +884,19 @@ void RobotDsipatchGreedy()
         }
         if (Robots[ri].is_goods == 1)
         { // 如果机器人拿着物品就直接找港口
-            if (IsInBerth(ri))
-            { // 如果到达港口，放下货物，继续找其他货物（?是否需要判断是不是自己要去的港口呢）
-
+            int now_berth_id = IsInBerth(ri);
+            if (now_berth_id >= 0 && now_berth_id == Robots[ri].berth_index)
+            { // 如果到达港口，放下货物，继续找其他货物（要判断是不是自己要去的港口）
                 RobotMoney += AllGoods[Robots[ri].goods_index].val;
-
                 Robots[ri].action = 1;
                 Berths[Robots[ri].berth_index].goods_queue.push(Robots[ri].goods_index); // 港口放入货物
                 Berths[Robots[ri].berth_index].total_goods_num++;                        // 港口放过的总货物数量
                 Robots[ri].goods_index = -1;
                 Robots[ri].goods_distance = MAX_LENGTH;
-
                 Robots[ri].is_goods = 0;
             }
             else
-            { // 没到港口，沿着图走
+            { // 没到港口（或者不是自己要去的港口），沿着图走（先看有没有找到被标记的优先港口）
                 int berth_id = LastMinBerth(Robots[ri].x, Robots[ri].y);
                 // int berth_id = -1;
                 if (berth_id == -1)
@@ -885,9 +909,9 @@ void RobotDsipatchGreedy()
                 { // 有标记
                     robot_match_num++;
                     robots_match[ri] = 1;
-                    Robots[ri].berth_index = berth_id;                                                // 重置要去港口号
-                    Robots[ri].goods_distance = BerthPathLenth[berth_id][Robots[ri].x][Robots[ri].y]; // 重置机器人路程
-                    Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y];   // 重置机器人方向
+                    Robots[ri].berth_index = berth_id; // 重置要去港口号
+                    // Robots[ri].goods_distance = BerthPathLenth[berth_id][Robots[ri].x][Robots[ri].y]; // 重置机器人路程
+                    Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y]; // 重置机器人方向
                 }
 
                 continue;
@@ -1003,7 +1027,17 @@ void RobotDsipatchGreedy()
                 }
             }
         }
+        else if (robots_match[ri] == 0 && Robots[ri].berth_index < 0)
+        { // TODO一开始就没找到货物的机器人（原地不动？）
+        }
     }
+    // for (int ri = 0; ri < ROBOT_NUM; ri++)
+    // { // 没匹配上的机器人向其他港口的方向移动
+    //     if (robots_match[ri] == 0)
+    //     { // 没匹配上（没有找到目标商品）
+
+    //     }
+    // }
 }
 
 // 让位函数
