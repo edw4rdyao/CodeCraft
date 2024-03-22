@@ -725,6 +725,10 @@ void BoatDispatch()
                 if (VirtualToBerthTime[Boats[i].pos] >= MAX_FRAME - Frame)
                 {
                     BoatToVirtual(i);
+
+                    // 如果在最后关头出发去了，那么出发并且解除该港口的标记
+                    Berths[Boats[i].pos].is_last = 0;
+
                     continue;
                 }
                 if (Boats[i].pos != Boats[i].real_dest)
@@ -1585,6 +1589,16 @@ void PrintBerthGoodsInfo(ofstream &out_file)
     }
 }
 
+// 输出最后船的聚焦信息
+void PrintBerthFocus(ofstream &out_file)
+{
+    out_file << "------Berth Focus------" << endl;
+    for (int i = 0; i < BERTH_NUM; i++)
+    {
+        out_file << "Berth " << i << " is focus " << Berths[i].is_last << endl;
+    }
+}
+
 // 输出每艘船的位置
 void PrintBoatInfo(ofstream &out_file)
 {
@@ -1616,7 +1630,7 @@ void PrintVirtualToBerthTime(ofstream &out_file)
 // 输出信息
 void Print(ofstream &out_file, int interval)
 {
-    if (Frame == 1)
+    if (Frame == 0)
     {
         PrintVirtualToBerthTime(out_file);
     }
@@ -1637,6 +1651,7 @@ void Print(ofstream &out_file, int interval)
         PrintMoney(out_file);
         PrintBerthGoodsInfo(out_file);
         PrintBoatInfo(out_file);
+        PrintBerthFocus(out_file);
     }
 }
 
@@ -1664,11 +1679,11 @@ int main()
 {
     Init();
 
-    // ofstream out_file = CreateFile();
+    ofstream out_file = CreateFile();
 
     for (int frame = 1; frame <= MAX_FRAME; frame++)
     {
-        // Print(out_file, 50);
+        Print(out_file, 50);
         Input();
         RobotDsipatchGreedy();
         AvoidCollision();
@@ -1680,7 +1695,7 @@ int main()
         fflush(stdout);
     }
 
-    // out_file.close(); // 关闭文件
+    out_file.close(); // 关闭文件
 
     return 0;
 }
