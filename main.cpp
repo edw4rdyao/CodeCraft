@@ -32,11 +32,11 @@ const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
 const int REV_DIR[4] = {1, 0, 3, 2}; // 上下左右的反方向（用于BFS记录路径）：下上右左
 
-int OurMoney = 0;                    // 我们自己算出来的金钱
-int Money, BoatCapacity, Frame;      // 金钱，船的容量，当前帧数
-int World[N][N];                     // 地图
-int BerthPath[BERTH_NUM][N][N];      // 泊位到每个点的最短路径(0: 上，1: 下，2: 左，3: 右)
-int BerthPathLenth[BERTH_NUM][N][N]; // 泊位到每个点的最短路径长度
+int OurMoney = 0;                       // 我们自己算出来的金钱
+int Money, BoatCapacity, Frame;         // 金钱，船的容量，当前帧数
+int World[N][N];                        // 地图
+vector<int> BerthPath[BERTH_NUM][N][N]; // 泊位到每个点的最短路径(0: 上，1: 下，2: 左，3: 右)
+int BerthPathLenth[BERTH_NUM][N][N];    // 泊位到每个点的最短路径长度
 
 int MaxVirtualToBerthTime;            // 虚拟点到港口的最大时间
 int MinVirtualToBerthTime;            // 虚拟点到港口的最小时间
@@ -212,6 +212,16 @@ int LastMinBerth(int x, int y)
     return min_berth;
 }
 
+// 点到港口最短路径的可能方向（按照当前帧随机取一个）
+int PsbDirToBerth(int berth_id, int x, int y)
+{
+    if (BerthPath[berth_id][x][y].size() > 0)
+    {
+        return BerthPath[berth_id][x][y][Frame % BerthPath[berth_id][x][y].size()];
+    }
+    return -1;
+}
+
 // 计算物品性价比
 double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
 {
@@ -331,17 +341,22 @@ void InitInfo()
 void InitToBerthBFS()
 {
     // 初始化所有泊位到每个点的最短路径及长度，均为-1
-    memset(BerthPath, -1, sizeof(BerthPath));
+    // memset(BerthPath, -1, sizeof(BerthPath));
     memset(BerthPathLenth, -1, sizeof(BerthPathLenth));
-    // 对每个泊位（左上角->中间点）开始做BFS
+    // 对每个泊位开始做BFS
     for (int b = 0; b < BERTH_NUM; b++)
     {
         int berth_x = Berths[b].x;
         int berth_y = Berths[b].y;
         queue<pair<int, int>> q;
-        q.push({berth_x, berth_y});
-        // 泊位本身的路径长度为0
-        BerthPathLenth[b][berth_x][berth_y] = 0;
+        for (int ofsx = 0; ofsx < 4; ofsx++)
+        { // 将泊位本身的点加入队列，路径长度为0
+            for (int ofsy = 0; ofsy < 4; ofsy++)
+            {
+                q.push({berth_x + ofsx, berth_y + ofsy});
+                BerthPathLenth[b][berth_x + ofsx][berth_y + ofsy] = 0;
+            }
+        }
         while (!q.empty())
         {
             // 从队列中取出一个点
@@ -352,23 +367,38 @@ void InitToBerthBFS()
             for (int i = 0; i < 4; i++)
             { // 遍历到下一个点
                 int dir = random_dir[i];
-                // int dir = (cur_pos.first + i) % 4; // 非随机
+                // int dir = i;
                 int nx = cur_pos.first + DX[dir];
                 int ny = cur_pos.second + DY[dir];
-                if (IsValid(nx, ny) && BerthPathLenth[b][nx][ny] < 0)
-                { // 判断该点是否可以到达(没有越界，为空地或者泊位，并且之前没有到达过)
-                    if (nx - berth_x >= 0 && nx - berth_x <= 3 && ny - berth_y >= 0 && ny - berth_y <= 3)
-                    { // 该点在港口内，则路径为0
-                        BerthPathLenth[b][nx][ny] = 0;
+                if (IsValid(nx, ny))
+                { // 判断该点是否可以到达(没有越界，为空地或者泊位)
+                    int next_path_length = BerthPathLenth[b][cur_pos.first][cur_pos.second] + 1;
+                    if (BerthPathLenth[b][nx][ny] < 0)
+                    { // 这个点之前没有遍历过
+                        if (nx - berth_x >= 0 && nx - berth_x <= 3 && ny - berth_y >= 0 && ny - berth_y <= 3)
+                        { // 该点在港口内，则路径为0
+                            BerthPathLenth[b][nx][ny] = 0;
+                        }
+                        else
+                        { // 否则路径加1
+                            BerthPathLenth[b][nx][ny] = next_path_length;
+                        }
+                        // 记录路径的方向
+                        BerthPath[b][nx][ny].push_back(REV_DIR[dir]);
+                        // 将该点加入队列
+                        q.push({nx, ny});
                     }
-                    else
-                    { // 否则路径加1
-                        BerthPathLenth[b][nx][ny] = BerthPathLenth[b][cur_pos.first][cur_pos.second] + 1;
+                    else if (BerthPathLenth[b][nx][ny] == next_path_length)
+                    { // 这个点之前遍历过，如果路程一样就加入方向
+                        // 把路径的方向加进去
+                        BerthPath[b][nx][ny].push_back(REV_DIR[dir]);
                     }
-                    // 记录路径的方向
-                    BerthPath[b][nx][ny] = REV_DIR[dir];
-                    // 将该点加入队列
-                    q.push({nx, ny});
+                    else if (BerthPathLenth[b][nx][ny] > next_path_length)
+                    { // 这个点的路径更短，清空之前的路径方向，把新方向加进去
+                        BerthPath[b][nx][ny].clear();
+                        BerthPath[b][nx][ny].push_back(REV_DIR[dir]);
+                        BerthPathLenth[b][nx][ny] = next_path_length;
+                    }
                 }
             }
         }
@@ -903,7 +933,7 @@ void RobotDsipatchGreedy()
                 { // 没标记
                     robot_match_num++;
                     robots_match[ri] = 1;
-                    Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y];
+                    Robots[ri].dir = PsbDirToBerth(Robots[ri].berth_index, Robots[ri].x, Robots[ri].y);
                 }
                 else
                 { // 有标记
@@ -911,7 +941,7 @@ void RobotDsipatchGreedy()
                     robots_match[ri] = 1;
                     Robots[ri].berth_index = berth_id; // 重置要去港口号
                     // Robots[ri].goods_distance = BerthPathLenth[berth_id][Robots[ri].x][Robots[ri].y]; // 重置机器人路程
-                    Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y]; // 重置机器人方向
+                    Robots[ri].dir = PsbDirToBerth(Robots[ri].berth_index, Robots[ri].x, Robots[ri].y); // 重置机器人方向
                 }
 
                 continue;
@@ -1001,7 +1031,7 @@ void RobotDsipatchGreedy()
             {
                 Robots[ri].action = 0;
                 Robots[ri].is_goods = 1;
-                Robots[ri].dir = BerthPath[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y];
+                Robots[ri].dir = PsbDirToBerth(Robots[ri].berth_index, Robots[ri].x, Robots[ri].y);
                 World[Robots[ri].x][Robots[ri].y] = 0;
             }
             robot_match_num++;
