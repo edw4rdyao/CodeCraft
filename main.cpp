@@ -27,8 +27,8 @@ const int MAX_GOODS_NUM = 150000;
 const int MAX_LENGTH = 80000;
 const int BERTH_TRAN_LEN = 500;
 
-const int MAX_ROAD_NUM = 50;
-const int MAX_ROAD_LEN = 250; // 300
+const int MAX_ROAD_NUM = 20;
+const int MAX_ROAD_LEN = 500; // 300
 
 const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
