@@ -1089,19 +1089,19 @@ bool CrashAvoid(int ri)
         int ny2 = Robots[ri].y + DY[3];
         int nx3 = Robots[ri].x + DX[(new_dir + 1) % 2]; // 向后的坐标
         int ny3 = Robots[ri].y + DY[(new_dir + 1) % 2];
-        if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0)
+        if (IsValid(nx1, ny1) && IsValid(nx2, ny2))
         {                         // 两个方向都可行,随机选一个
             new_dir = 2 + ri % 2; // 生成 2 或 3
         }
-        else if (World[nx1][ny1] >= 0)
+        else if (IsValid(nx1, ny1))
         {
             new_dir = 2; // 左
         }
-        else if (World[nx2][ny2] >= 0)
+        else if (IsValid(nx2, ny2))
         {
             new_dir = 3; // 右
         }
-        else if (World[nx3][ny3] >= 0)
+        else if (IsValid(nx3, ny3))
         {
             new_dir = (new_dir + 1) % 2; // 后退
         }
@@ -1119,19 +1119,19 @@ bool CrashAvoid(int ri)
         int ny2 = Robots[ri].y + DY[1];
         int nx3 = Robots[ri].x + DX[5 - new_dir]; // 向后的坐标
         int ny3 = Robots[ri].y + DY[5 - new_dir];
-        if (World[nx1][ny1] >= 0 && World[nx2][ny2] >= 0)
+        if (IsValid(nx1, ny1) && IsValid(nx2, ny2))
         {                     // 两个方向都可行,随机选一个
             new_dir = ri % 2; // 生成 0 或 1
         }
-        else if (World[nx1][ny1] >= 0)
+        else if (IsValid(nx1, ny1))
         {
             new_dir = 0; // 上
         }
-        else if (World[nx2][ny2] >= 0)
+        else if (IsValid(nx2, ny2))
         {
             new_dir = 1; // 下
         }
-        else if (World[nx3][ny3] >= 0)
+        else if (IsValid(nx3, ny3))
         { // 后退
             new_dir = 5 - new_dir;
         }
@@ -1393,12 +1393,20 @@ void RushPosisionAvoid(int ri, int rj, bool (&is_collision_robot)[ROBOT_NUM])
     }
 }
 
+// FILE *file;
+
 // 碰撞检测与规避
 void AvoidCollision()
 {
     bool is_collision = true;                     // 本次是否有碰撞
     int detect_num = 0;                           // 检测的次数
     bool is_collision_robot[ROBOT_NUM] = {false}; // 对每个机器人判断本轮是否有冲突
+
+    // if (Frame == 132){
+    //     file = fopen("debug.txt", "w");
+    // }
+    
+
     while (is_collision)
     {
         detect_num++;
@@ -1418,6 +1426,18 @@ void AvoidCollision()
                 {
                     if (ri != rj)
                     {
+
+                        if (Frame == 132 && (rj == 2 || rj == 0))
+                        {
+                            // 将用户输入的内容写入文件
+                            // if (file != NULL)
+                            // {
+                            //     fprintf(file, "ri: %d\n", ri);
+                            //     fprintf(file, "0 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[0].dir, Robots[0].berth_index, Robots[0].is_goods, Robots[0].goods_index, is_collision_robot[0]);
+                            //     fprintf(file, "2 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[2].dir, Robots[2].berth_index, Robots[2].is_goods, Robots[2].goods_index, is_collision_robot[2]);
+                            // }
+                        }
+
                         // 碰上不移动的机器人j
                         if (Robots[rj].dir < 0 && Robots[rj].x == nx_ri && Robots[rj].y == ny_ri)
                         {
@@ -1467,6 +1487,16 @@ void AvoidCollision()
                             {
                                 is_collision = true;
                                 HedgeAvoid(ri, rj, is_collision_robot);
+                                if (Frame == 132 && (rj == 2 || rj == 0))
+                                {
+                                    // 将用户输入的内容写入文件
+                                    // if (file != NULL)
+                                    // {
+                                    //     fprintf(file, "ri: %d\n", ri);
+                                    //     fprintf(file, "0 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[0].dir, Robots[0].berth_index, Robots[0].is_goods, Robots[0].goods_index, is_collision_robot[0]);
+                                    //     fprintf(file, "2 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[2].dir, Robots[2].berth_index, Robots[2].is_goods, Robots[2].goods_index, is_collision_robot[2]);
+                                    // }
+                                }
                                 break;
                             }
                             // 抢位
@@ -1509,6 +1539,16 @@ void AvoidCollision()
                             }
                         }
                     }
+                    if (Frame == 132 && (rj == 2 || rj == 0))
+                    {
+                        // // 将用户输入的内容写入文件
+                        // if (file != NULL)
+                        // {
+                        //     fprintf(file, "ri: %d\n", ri);
+                        //     fprintf(file, "0 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[0].dir, Robots[0].berth_index, Robots[0].is_goods, Robots[0].goods_index, is_collision_robot[0]);
+                        //     fprintf(file, "2 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[2].dir, Robots[2].berth_index, Robots[2].is_goods, Robots[2].goods_index, is_collision_robot[2]);
+                        // }
+                    }
                 }
                 // 如果有碰撞并且规避了，就跳出，需要重新检测碰撞
                 if (is_collision)
@@ -1523,6 +1563,10 @@ void AvoidCollision()
             break;
         }
     }
+
+    // if (Frame == 132){
+    //     fclose(file);
+    // }
 }
 
 // 打印机器人指令
@@ -1679,11 +1723,11 @@ int main()
 {
     Init();
 
-    ofstream out_file = CreateFile();
+    // ofstream out_file = CreateFile();
 
     for (int frame = 1; frame <= MAX_FRAME; frame++)
     {
-        Print(out_file, 50);
+        // Print(out_file, 50);
         Input();
         RobotDsipatchGreedy();
         AvoidCollision();
@@ -1695,7 +1739,7 @@ int main()
         fflush(stdout);
     }
 
-    out_file.close(); // 关闭文件
+    // out_file.close(); // 关闭文件
 
     return 0;
 }
