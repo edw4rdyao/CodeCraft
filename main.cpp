@@ -12,6 +12,8 @@
 #include <cstring>
 #include <ctime>
 #include <fstream>
+#include <thread>
+#include <mutex>
 #endif
 
 using namespace std;
