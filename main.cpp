@@ -27,8 +27,9 @@ const int MAX_GOODS_NUM = 150000;
 const int MAX_LENGTH = 80000;
 const int BERTH_TRAN_LEN = 500;
 
-const int MAX_ROAD_NUM = 20;
-const int MAX_ROAD_LEN = 500; // 300
+const int MAX_ROAD_NUM = 10;
+const int MAX_ROAD_LEN = 350;
+const double TO_GOODS_WHIGHT = 3.0;
 
 const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
@@ -253,7 +254,7 @@ double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
         to_berth_len = BerthPathLenth[to_berth_index][goods_x][goods_y];
     }
 
-    double cost_value = (double)goods_value / (step_num + to_berth_len);
+    double cost_value = (double)goods_value / (step_num * TO_GOODS_WHIGHT + to_berth_len);
     return cost_value;
 }
 
@@ -844,8 +845,8 @@ bool NoGoodsRobotsCompair(int ri, int rj)
     { // 都没有要拿的物品则，id大的优先
         return ri > rj;
     }
-    double ri_val = (double)AllGoods[goodsi].val / (Robots[ri].goods_distance + BerthPathLenth[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
-    double rj_val = (double)AllGoods[goodsj].val / (Robots[rj].goods_distance + BerthPathLenth[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
+    double ri_val = (double)AllGoods[goodsi].val / (Robots[ri].goods_distance * TO_GOODS_WHIGHT + BerthPathLenth[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
+    double rj_val = (double)AllGoods[goodsj].val / (Robots[rj].goods_distance * TO_GOODS_WHIGHT + BerthPathLenth[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
     if (ri_val >= rj_val)
     {
         return true;
@@ -1426,7 +1427,6 @@ void AvoidCollision()
     // if (Frame == 132){
     //     file = fopen("debug.txt", "w");
     // }
-    
 
     while (is_collision)
     {
