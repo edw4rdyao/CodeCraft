@@ -16,6 +16,8 @@
 #include <mutex>
 #endif
 
+#define DEBUG
+
 using namespace std;
 
 const int MAX_FRAME = 15000;
@@ -168,6 +170,33 @@ struct Boat
     }
 } Boats[BOAT_NUM];
 
+struct Road
+{
+    int robot_index;    // 路径对应的机器人id
+    int goods_index;    // 路径对应的物品id
+    int goods_distance; // 离物品的距离
+    int berth_index;    // 最近港口id
+    int next_dir;       // 机器人下一步方向
+    double value;       // 性价比
+
+    struct Comparator
+    { // 内部类作为比较器
+        bool operator()(const Road &a, const Road &b) const
+        {
+            return a.value < b.value;
+        }
+    };
+    Road(int robot_index, int goods_index, int goods_distance, int berth_index, int next_dir, double value)
+    {
+        this->robot_index = robot_index;
+        this->goods_index = goods_index;
+        this->goods_distance = goods_distance;
+        this->berth_index = berth_index;
+        this->next_dir = next_dir;
+        this->value = value;
+    }
+};
+
 // 检查坐标(x, y)是否在地图范围内并且不是障碍物或者海洋
 bool IsValid(int x, int y)
 {
@@ -196,7 +225,7 @@ int IsOnGoods(int x, int y)
     return -100;
 }
 
-// 找到所标记港口中的最短距离港口
+// 找到所有被标记港口中的最短距离港口
 int LastMinBerth(int x, int y)
 {
     int min_berth = -1; // 最短标记港口；无标记就返回-1
@@ -215,7 +244,7 @@ int LastMinBerth(int x, int y)
     return min_berth;
 }
 
-// 点到港口最短路径的可能方向（按照当前帧随机取一个）
+// 地图的点到港口最短路径的可能方向（按照当前帧随机取一个）
 int PsbDirToBerth(int berth_id, int x, int y)
 {
     if (BerthPath[berth_id][x][y].size() > 0)
@@ -225,7 +254,7 @@ int PsbDirToBerth(int berth_id, int x, int y)
     return -1;
 }
 
-// 计算物品性价比
+// 计算物品性价比，并确定最接近的港口
 double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
 {
     int goods_value;               // 物品价值
@@ -523,310 +552,6 @@ void Input()
     scanf("%s", ok);
 }
 
-// 船去虚拟点
-void BoatToVirtual(int boat_index)
-{
-    if (VirtualToBerthTransit[Boats[boat_index].pos] == Boats[boat_index].pos)
-    { // 如果不要中转，就go
-        printf("go %d\n", boat_index);
-    }
-    else
-    { // 如果要中转，就去中转站，然后记录真正的目的地（虚拟点）
-        printf("ship %d %d\n", boat_index, VirtualToBerthTransit[Boats[boat_index].pos]);
-    }
-    Boats[boat_index].real_dest = -1;
-    Berths[Boats[boat_index].pos].boat_num--; // 港口的真正的船数量减一
-}
-
-// 在虚拟点找一个最好的港口出发
-int FindBestBerthFromVirtual(int boat_index)
-{
-    int best_berth = -1;
-    double max_value = 0;
-    for (int i = 0; i < BERTH_NUM; i++)
-    { // 对于每一个港口
-        if (Berths[i].boat_num == 0)
-        { // 只考虑没有船在或者要去的港口
-            int to_time = VirtualToBerthTime[i];
-            if (to_time * 2 < MAX_FRAME - Frame)
-            { // 确保其过去之后可以回来
-                // 估算过去之后货物增加的数量
-                double add_goods_num = (double)Berths[i].total_goods_num / (double)Frame * (double)to_time;
-                double berth_all_value = 0;
-                // 模拟该船装货物
-                int time_first = 0;
-                double time_second = 0;
-                int rest_load_time = MAX_FRAME - Frame - to_time * 2; // 最多能给你多少时间装货
-                bool time_out = false;                                // 是否超过了能装货的最短时间
-                int loaded_goods_num = 0;                             // 已经装了的货数量
-
-                queue<int> tmp = Berths[i].goods_queue;
-                while (!tmp.empty())
-                { // 先装已有的货，并且更新已经用了的时间
-                    if (time_first >= rest_load_time)
-                    { // 超时了，就记录一下，并且不装了
-                        time_out = true;
-                        break;
-                    }
-                    loaded_goods_num++; // 装一个货
-                    time_first = (loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
-                    berth_all_value += AllGoods[tmp.front()].val;
-                    tmp.pop();
-                    if (loaded_goods_num >= BoatCapacity)
-                    { // 已经装满了，就不装了
-                        break;
-                    }
-                }
-
-                if (loaded_goods_num < BoatCapacity && !time_out)
-                { // 没有装满并且还有时间装（那就装预计增加的，装多少取决于剩余时间内能装的，多少容量以及还有多少货，三者中的最小值）
-                    double load_num_again = min(rest_load_time * Berths[i].loading_speed, BoatCapacity - loaded_goods_num);
-                    load_num_again = min(load_num_again, add_goods_num);
-                    // 这些货的价值和时间
-                    time_second += (load_num_again / Berths[i].loading_speed);
-                    berth_all_value += (load_num_again * 100.0);
-                }
-
-                // 计算性价比
-                berth_all_value /= (to_time * 2 + time_first + time_second);
-                if (berth_all_value > max_value)
-                {
-                    max_value = berth_all_value;
-                    best_berth = i;
-                }
-            }
-        }
-    }
-    return best_berth;
-}
-
-// 在港口选择其他港口或者返回虚拟点
-int FindBestBerthOrGoFromBerth(int boat_index)
-{
-    int best_berth_or_go = -2;
-    int best_berth = -2;
-    double max_value = 0;
-    double berth_value = 0;
-    // 先判断运走的价值（直接去虚拟点）?
-    double go_value = (double)Boats[boat_index].goods_value / VirtualToBerthTime[Boats[boat_index].pos];
-    if (go_value > max_value /*&& Boats[boat_index].goods_num >= 0.7 * BoatCapacity*/)
-    {
-        max_value = go_value;
-        best_berth_or_go = -1;
-    }
-
-    for (int i = 0; i < BERTH_NUM; i++)
-    { // 对于每一个港口
-        if (i == Boats[boat_index].pos)
-        { // 船留当前在的港口，计算预估的增加的货物
-            int to_load_num = BoatCapacity - Boats[boat_index].goods_num;
-            double time_load = to_load_num / ((double)Berths[i].total_goods_num / Frame);
-            double stay_value = (Boats[boat_index].goods_value + to_load_num * 100) / (time_load + VirtualToBerthTime[i]);
-            if (stay_value > max_value)
-            {
-                max_value = stay_value;
-                best_berth_or_go = i;
-            }
-            if (stay_value > berth_value)
-            {
-                berth_value = stay_value;
-                best_berth = i;
-            }
-        }
-        if (Berths[i].boat_num == 0)
-        { // 只考虑没有船在或者要去的港口
-            int to_time = BERTH_TRAN_LEN;
-            if (to_time + VirtualToBerthTime[i] < MAX_FRAME - Frame)
-            { // 确保其过去之后可以返回虚拟点
-                // 估算过去之后货物增加的数量
-                double add_goods_num = (double)Berths[i].total_goods_num / (double)Frame * (double)to_time;
-                double berth_all_value = 0;
-
-                // 模拟该船装货物
-                int time_first = 0;
-                double time_second = 0;
-                int rest_load_time = MAX_FRAME - Frame - to_time - VirtualToBerthTime[i]; // 最多能给你多少时间装货
-                bool time_out = false;                                                    // 是否超过了能装货的最短时间
-                int loaded_goods_num = 0;                                                 // 已经装了的货数量
-
-                queue<int> tmp = Berths[i].goods_queue;
-                while (!tmp.empty())
-                { // 先装已有的货，并且更新已经用了的时间
-                    if (time_first >= rest_load_time)
-                    { // 超时了，就记录一下，并且不装了
-                        time_out = true;
-                        break;
-                    }
-                    loaded_goods_num++; // 装一个货
-                    time_first = (loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
-                    berth_all_value += AllGoods[tmp.front()].val;
-                    tmp.pop();
-                    if (loaded_goods_num >= BoatCapacity - Boats[boat_index].goods_num)
-                    { // 已经装满了，就不装了
-                        break;
-                    }
-                }
-
-                if (loaded_goods_num < BoatCapacity - Boats[boat_index].goods_num && !time_out)
-                { // 没有装满并且还有时间装（那就装预计增加的，装多少取决于剩余时间内能装的，多少容量以及还有多少货，三者中的最小值）
-                    double load_num_again = min(rest_load_time * Berths[i].loading_speed, BoatCapacity - Boats[boat_index].goods_num - loaded_goods_num);
-                    load_num_again = min(load_num_again, add_goods_num);
-                    // 这些货的价值和时间
-                    time_second += (load_num_again / Berths[i].loading_speed);
-                    berth_all_value += (load_num_again * 100.0);
-                }
-
-                // 计算性价比
-                berth_all_value /= (to_time + VirtualToBerthTime[i] + time_first + time_second);
-                if (berth_all_value > max_value)
-                {
-                    max_value = berth_all_value;
-                    best_berth_or_go = i;
-                }
-                if (berth_all_value > berth_value)
-                {
-                    berth_value = berth_all_value;
-                    best_berth = i;
-                }
-            }
-        }
-    }
-    return VirtualToBerthTime[Boats[boat_index].pos] * 3 < MAX_FRAME - Frame ? best_berth_or_go : best_berth;
-}
-
-// 船的调度
-void BoatDispatch()
-{
-    for (int i = 0; i < BOAT_NUM; i++)
-    { // 对于每艘船进行调度
-        if (Boats[i].status == 0)
-        { // 船在移动中，则不管
-            continue;
-        }
-        else if (Boats[i].status == 1)
-        { // 船在港口或者虚拟点
-            if (Boats[i].pos == -1)
-            {
-                // 卸货完成，计算总获得的金钱
-                OurMoney += Boats[i].goods_value;
-
-                // 船在虚拟点，直接卸货完成，决策好的港口
-                // 卸货
-                Boats[i].goods_num = 0;
-                Boats[i].goods_value = 0;
-                // 找港口
-                int best_berth = FindBestBerthFromVirtual(i);
-                if (best_berth != -1)
-                {
-                    Boats[i].real_dest = best_berth;
-                    printf("ship %d %d\n", i, VirtualToBerthTransit[best_berth]);
-                    Berths[best_berth].boat_num++;
-                }
-            }
-            else
-            { // 船在港口
-                if (VirtualToBerthTime[Boats[i].pos] >= MAX_FRAME - Frame)
-                {
-                    BoatToVirtual(i);
-
-                    // 如果在最后关头出发去了，那么出发并且解除该港口的标记
-                    Berths[Boats[i].pos].is_last = 0;
-
-                    continue;
-                }
-                if (Boats[i].pos != Boats[i].real_dest)
-                { // 如果船在中转站(不在真正的目的地就一定中转站)，就直接去真正的目的地
-                    if (Boats[i].real_dest == -1)
-                    { // 如果真正的目的地是虚拟点，则go
-                        printf("go %d\n", i);
-                    }
-                    else if (Boats[i].real_dest >= 0)
-                    { // 如果真正的目的地是其他港口，则ship
-                        printf("ship %d %d\n", i, Boats[i].real_dest);
-                    }
-                    continue;
-                }
-                // 剩下的情况是在真正的目的地港口并且可以正常装货
-                if (Boats[i].goods_num >= BoatCapacity)
-                { // 如果船装满了，一定要出发去虚拟点
-                    BoatToVirtual(i);
-
-                    // 如果在最后关头装满了货，那么出发并且解除该港口的标记
-                    if (BERTH_TRAN_LEN + VirtualToBerthTime[Boats[i].pos] >= MAX_FRAME - Frame)
-                    {
-                        Berths[Boats[i].pos].is_last = 0;
-                    }
-
-                    continue;
-                }
-                else if (Berths[Boats[i].pos].goods_queue.size() == 0)
-                { // 港口没货物了（没有满速率装货也没关系，这一帧有一个货也是值的）
-                    int best_berth_or_go = FindBestBerthOrGoFromBerth(i);
-                    if (best_berth_or_go == -1)
-                    {
-                        BoatToVirtual(i);
-                    }
-                    else if (best_berth_or_go >= 0 && best_berth_or_go != Boats[i].pos)
-                    {
-                        Berths[Boats[i].pos].boat_num--;
-                        Berths[best_berth_or_go].boat_num++;
-                        Boats[i].real_dest = best_berth_or_go;
-                        printf("ship %d %d\n", i, best_berth_or_go);
-
-                        // 如果在最后关头进行最后一次调度到其他港口的操作，那么给那个港口进行标记
-                        if (2 * BERTH_TRAN_LEN + VirtualToBerthTime[best_berth_or_go] >= MAX_FRAME - Frame)
-                        {
-                            Berths[best_berth_or_go].is_last = 1;
-                        }
-                    }
-                    else // 剩下的正常装货
-                    {
-                        // 如果在最后关头选择继续留在该港口，那么给这个港口进行标记
-                        if (BERTH_TRAN_LEN + VirtualToBerthTime[best_berth_or_go] >= MAX_FRAME - Frame)
-                        {
-                            Berths[best_berth_or_go].is_last = 1;
-                        }
-                    }
-                }
-                else // 剩下的正常装货
-                {
-                }
-            }
-        }
-        else if (Boats[i].status == 2)
-        { // 船在等待
-            if (Boats[i].pos != Boats[i].real_dest)
-            { // 如果船在中转站(不在真正的目的地就一定中转站)，就直接去真正的目的地
-                if (Boats[i].real_dest == -1)
-                { // 如果真正的目的地是虚拟点，则go
-                    printf("go %d\n", i);
-                }
-                else if (Boats[i].real_dest >= 0)
-                { // 如果真正的目的地是其他港口，则ship
-                    printf("ship %d %d\n", i, Boats[i].real_dest);
-                }
-                continue;
-            }
-            else
-            { // 基本不会出现，因为我只去没船在的以及没船要去的（以防万一，再找个港口）
-              //
-            }
-        }
-    }
-}
-
-// 最后装载货物
-void LoadGoods()
-{
-    for (int i = 0; i < BOAT_NUM; i++)
-    {
-        if (Boats[i].status == 1 && Boats[i].pos != -1 && Boats[i].real_dest == Boats[i].pos) // 船只在装货
-        {
-            Boats[i].load_goods();
-        }
-    }
-}
-
 // 没拿物品的机器人之间比较要拿物品的性价比
 bool NoGoodsRobotsCompair(int ri, int rj)
 {
@@ -873,33 +598,6 @@ bool GetGoodsRobotsCompair(int ri, int rj)
         return false;
     }
 }
-
-struct Road
-{
-    int robot_index; // 路径对应的机器人id
-    int goods_index; // 路径对应的物品id
-    int goods_distance;
-    int berth_index; // 最近港口id
-    int next_dir;    // 机器人下一步方向
-    double value;    // 性价比
-
-    struct Comparator
-    { // 内部类作为比较器
-        bool operator()(const Road &a, const Road &b) const
-        {
-            return a.value < b.value;
-        }
-    };
-    Road(int robot_index, int goods_index, int goods_distance, int berth_index, int next_dir, double value)
-    {
-        this->robot_index = robot_index;
-        this->goods_index = goods_index;
-        this->goods_distance = goods_distance;
-        this->berth_index = berth_index;
-        this->next_dir = next_dir;
-        this->value = value;
-    }
-};
 
 // 机器人多线程BFS
 void RobotBFSToGoods(int ri, priority_queue<Road, vector<Road>, Road::Comparator> &roads_pq, mutex &roads_pq_mutex)
@@ -1415,18 +1113,12 @@ void RushPosisionAvoid(int ri, int rj, bool (&is_collision_robot)[ROBOT_NUM])
     }
 }
 
-// FILE *file;
-
 // 碰撞检测与规避
 void AvoidCollision()
 {
     bool is_collision = true;                     // 本次是否有碰撞
     int detect_num = 0;                           // 检测的次数
     bool is_collision_robot[ROBOT_NUM] = {false}; // 对每个机器人判断本轮是否有冲突
-
-    // if (Frame == 132){
-    //     file = fopen("debug.txt", "w");
-    // }
 
     while (is_collision)
     {
@@ -1441,40 +1133,25 @@ void AvoidCollision()
                 // 机器人i下一步的位置
                 int nx_ri = Robots[ri].x + DX[Robots[ri].dir];
                 int ny_ri = Robots[ri].y + DY[Robots[ri].dir];
-                // 检测除自己之外其他机器人会不会在这个位置上
-                // （不移动的机器人看当前位置，会移动的机器人分析是对冲还是抢位置）
+                // 检测除自己之外其他机器人会不会在这个位置上（不移动的机器人看当前位置，会移动的机器人分析是对冲还是抢位置）
                 for (int rj = 0; rj < ROBOT_NUM; rj++)
                 {
                     if (ri != rj)
                     {
-
-                        if (Frame == 132 && (rj == 2 || rj == 0))
-                        {
-                            // 将用户输入的内容写入文件
-                            // if (file != NULL)
-                            // {
-                            //     fprintf(file, "ri: %d\n", ri);
-                            //     fprintf(file, "0 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[0].dir, Robots[0].berth_index, Robots[0].is_goods, Robots[0].goods_index, is_collision_robot[0]);
-                            //     fprintf(file, "2 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[2].dir, Robots[2].berth_index, Robots[2].is_goods, Robots[2].goods_index, is_collision_robot[2]);
-                            // }
-                        }
-
                         // 碰上不移动的机器人j
                         if (Robots[rj].dir < 0 && Robots[rj].x == nx_ri && Robots[rj].y == ny_ri)
                         {
                             is_collision = true;
-                            // ？若不动的处于恢复状态，我垂直移动，不行我就罚站
                             if (Robots[rj].status == 0)
-                            {
+                            { // ？若不动的处于恢复状态，我垂直移动，不行我就罚站
                                 if (!CrashAvoid(ri))
                                 {
                                     Robots[ri].dir = -1;
                                 };
                                 is_collision_robot[ri] = true;
                             }
-                            // 若不动的只是在罚站，他垂直移动
                             else
-                            {
+                            { // 若不动的只是在罚站，他垂直移动
                                 if (is_collision_robot[ri] && is_collision_robot[rj])
                                 {                   // 若都有碰撞过
                                     CrashAvoid(rj); // 他垂直移动
@@ -1508,23 +1185,12 @@ void AvoidCollision()
                             {
                                 is_collision = true;
                                 HedgeAvoid(ri, rj, is_collision_robot);
-                                if (Frame == 132 && (rj == 2 || rj == 0))
-                                {
-                                    // 将用户输入的内容写入文件
-                                    // if (file != NULL)
-                                    // {
-                                    //     fprintf(file, "ri: %d\n", ri);
-                                    //     fprintf(file, "0 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[0].dir, Robots[0].berth_index, Robots[0].is_goods, Robots[0].goods_index, is_collision_robot[0]);
-                                    //     fprintf(file, "2 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[2].dir, Robots[2].berth_index, Robots[2].is_goods, Robots[2].goods_index, is_collision_robot[2]);
-                                    // }
-                                }
                                 break;
                             }
                             // 抢位
                             if (nx_ri == nx_rj && ny_ri == ny_rj)
                             {
                                 is_collision = true;
-
                                 // 判断中间有没有机器人
                                 int rk = 0;
                                 for (rk = 0; rk < ROBOT_NUM; rk++)
@@ -1560,16 +1226,6 @@ void AvoidCollision()
                             }
                         }
                     }
-                    if (Frame == 132 && (rj == 2 || rj == 0))
-                    {
-                        // // 将用户输入的内容写入文件
-                        // if (file != NULL)
-                        // {
-                        //     fprintf(file, "ri: %d\n", ri);
-                        //     fprintf(file, "0 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[0].dir, Robots[0].berth_index, Robots[0].is_goods, Robots[0].goods_index, is_collision_robot[0]);
-                        //     fprintf(file, "2 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[2].dir, Robots[2].berth_index, Robots[2].is_goods, Robots[2].goods_index, is_collision_robot[2]);
-                        // }
-                    }
                 }
                 // 如果有碰撞并且规避了，就跳出，需要重新检测碰撞
                 if (is_collision)
@@ -1584,10 +1240,6 @@ void AvoidCollision()
             break;
         }
     }
-
-    // if (Frame == 132){
-    //     fclose(file);
-    // }
 }
 
 // 打印机器人指令
@@ -1626,69 +1278,361 @@ void PrintRobotsIns()
     }
 }
 
+// 船去虚拟点
+void BoatToVirtual(int boat_index)
+{
+    if (VirtualToBerthTransit[Boats[boat_index].pos] == Boats[boat_index].pos)
+    { // 如果不要中转，就go
+        printf("go %d\n", boat_index);
+    }
+    else
+    { // 如果要中转，就去中转站，然后记录真正的目的地（虚拟点）
+        printf("ship %d %d\n", boat_index, VirtualToBerthTransit[Boats[boat_index].pos]);
+    }
+    Boats[boat_index].real_dest = -1;
+    Berths[Boats[boat_index].pos].boat_num--; // 港口的真正的船数量减一
+}
+
+// 在虚拟点找一个最好的港口出发
+int FindBestBerthFromVirtual(int boat_index)
+{
+    int best_berth = -1;
+    double max_value = 0;
+    for (int i = 0; i < BERTH_NUM; i++)
+    { // 对于每一个港口
+        if (Berths[i].boat_num == 0)
+        { // 只考虑没有船在或者要去的港口
+            int to_time = VirtualToBerthTime[i];
+            if (to_time * 2 < MAX_FRAME - Frame)
+            { // 确保其过去之后可以回来
+                // 估算过去之后货物增加的数量
+                double add_goods_num = (double)Berths[i].total_goods_num / (double)Frame * (double)to_time;
+                double berth_all_value = 0;
+                // 模拟该船装货物
+                int time_first = 0;
+                double time_second = 0;
+                int rest_load_time = MAX_FRAME - Frame - to_time * 2; // 最多能给你多少时间装货
+                bool time_out = false;                                // 是否超过了能装货的最短时间
+                int loaded_goods_num = 0;                             // 已经装了的货数量
+
+                queue<int> tmp = Berths[i].goods_queue;
+                while (!tmp.empty())
+                { // 先装已有的货，并且更新已经用了的时间
+                    if (time_first >= rest_load_time)
+                    { // 超时了，就记录一下，并且不装了
+                        time_out = true;
+                        break;
+                    }
+                    loaded_goods_num++; // 装一个货
+                    time_first = (loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
+                    berth_all_value += AllGoods[tmp.front()].val;
+                    tmp.pop();
+                    if (loaded_goods_num >= BoatCapacity)
+                    { // 已经装满了，就不装了
+                        break;
+                    }
+                }
+
+                if (loaded_goods_num < BoatCapacity && !time_out)
+                { // 没有装满并且还有时间装（那就装预计增加的，装多少取决于剩余时间内能装的，多少容量以及还有多少货，三者中的最小值）
+                    double load_num_again = min(rest_load_time * Berths[i].loading_speed, BoatCapacity - loaded_goods_num);
+                    load_num_again = min(load_num_again, add_goods_num);
+                    // 这些货的价值和时间
+                    time_second += (load_num_again / Berths[i].loading_speed);
+                    berth_all_value += (load_num_again * 100.0);
+                }
+
+                // 计算性价比
+                berth_all_value /= (to_time * 2 + time_first + time_second);
+                if (berth_all_value > max_value)
+                {
+                    max_value = berth_all_value;
+                    best_berth = i;
+                }
+            }
+        }
+    }
+    return best_berth;
+}
+
+// 在港口选择其他港口或者返回虚拟点
+int FindBestBerthOrGoFromBerth(int boat_index)
+{
+    int best_berth_or_go = -2;
+    int best_berth = -2;
+    double max_value = 0;
+    double berth_value = 0;
+    // 先判断运走的价值（直接去虚拟点）?
+    double go_value = (double)Boats[boat_index].goods_value / VirtualToBerthTime[Boats[boat_index].pos];
+    if (go_value > max_value /*&& Boats[boat_index].goods_num >= 0.7 * BoatCapacity*/)
+    {
+        max_value = go_value;
+        best_berth_or_go = -1;
+    }
+
+    for (int i = 0; i < BERTH_NUM; i++)
+    { // 对于每一个港口
+        if (i == Boats[boat_index].pos)
+        { // 船留当前在的港口，计算预估的增加的货物
+            int to_load_num = BoatCapacity - Boats[boat_index].goods_num;
+            double time_load = to_load_num / ((double)Berths[i].total_goods_num / Frame);
+            double stay_value = (Boats[boat_index].goods_value + to_load_num * 100) / (time_load + VirtualToBerthTime[i]);
+            if (stay_value > max_value)
+            {
+                max_value = stay_value;
+                best_berth_or_go = i;
+            }
+            if (stay_value > berth_value)
+            {
+                berth_value = stay_value;
+                best_berth = i;
+            }
+        }
+        if (Berths[i].boat_num == 0)
+        { // 只考虑没有船在或者要去的港口
+            int to_time = BERTH_TRAN_LEN;
+            if (to_time + VirtualToBerthTime[i] < MAX_FRAME - Frame)
+            { // 确保其过去之后可以返回虚拟点
+                // 估算过去之后货物增加的数量
+                double add_goods_num = (double)Berths[i].total_goods_num / (double)Frame * (double)to_time;
+                double berth_all_value = 0;
+
+                // 模拟该船装货物
+                int time_first = 0;
+                double time_second = 0;
+                int rest_load_time = MAX_FRAME - Frame - to_time - VirtualToBerthTime[i]; // 最多能给你多少时间装货
+                bool time_out = false;                                                    // 是否超过了能装货的最短时间
+                int loaded_goods_num = 0;                                                 // 已经装了的货数量
+
+                queue<int> tmp = Berths[i].goods_queue;
+                while (!tmp.empty())
+                { // 先装已有的货，并且更新已经用了的时间
+                    if (time_first >= rest_load_time)
+                    { // 超时了，就记录一下，并且不装了
+                        time_out = true;
+                        break;
+                    }
+                    loaded_goods_num++; // 装一个货
+                    time_first = (loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
+                    berth_all_value += AllGoods[tmp.front()].val;
+                    tmp.pop();
+                    if (loaded_goods_num >= BoatCapacity - Boats[boat_index].goods_num)
+                    { // 已经装满了，就不装了
+                        break;
+                    }
+                }
+
+                if (loaded_goods_num < BoatCapacity - Boats[boat_index].goods_num && !time_out)
+                { // 没有装满并且还有时间装（那就装预计增加的，装多少取决于剩余时间内能装的，多少容量以及还有多少货，三者中的最小值）
+                    double load_num_again = min(rest_load_time * Berths[i].loading_speed, BoatCapacity - Boats[boat_index].goods_num - loaded_goods_num);
+                    load_num_again = min(load_num_again, add_goods_num);
+                    // 这些货的价值和时间
+                    time_second += (load_num_again / Berths[i].loading_speed);
+                    berth_all_value += (load_num_again * 100.0);
+                }
+
+                // 计算性价比
+                berth_all_value /= (to_time + VirtualToBerthTime[i] + time_first + time_second);
+                if (berth_all_value > max_value)
+                {
+                    max_value = berth_all_value;
+                    best_berth_or_go = i;
+                }
+                if (berth_all_value > berth_value)
+                {
+                    berth_value = berth_all_value;
+                    best_berth = i;
+                }
+            }
+        }
+    }
+    return VirtualToBerthTime[Boats[boat_index].pos] * 3 < MAX_FRAME - Frame ? best_berth_or_go : best_berth;
+}
+
+// 船的调度
+void BoatDispatch()
+{
+    for (int i = 0; i < BOAT_NUM; i++)
+    { // 对于每艘船进行调度
+        if (Boats[i].status == 0)
+        { // 船在移动中，则不管
+            continue;
+        }
+        else if (Boats[i].status == 1)
+        { // 船在港口或者虚拟点
+            if (Boats[i].pos == -1)
+            {
+                // 卸货完成，计算总获得的金钱
+                OurMoney += Boats[i].goods_value;
+
+                // 船在虚拟点，直接卸货完成，决策好的港口
+                // 卸货
+                Boats[i].goods_num = 0;
+                Boats[i].goods_value = 0;
+                // 找港口
+                int best_berth = FindBestBerthFromVirtual(i);
+                if (best_berth != -1)
+                {
+                    Boats[i].real_dest = best_berth;
+                    printf("ship %d %d\n", i, VirtualToBerthTransit[best_berth]);
+                    Berths[best_berth].boat_num++;
+                }
+            }
+            else
+            { // 船在港口
+                if (VirtualToBerthTime[Boats[i].pos] >= MAX_FRAME - Frame)
+                {
+                    BoatToVirtual(i);
+
+                    // 如果在最后关头出发去了，那么出发并且解除该港口的标记
+                    Berths[Boats[i].pos].is_last = 0;
+
+                    continue;
+                }
+                if (Boats[i].pos != Boats[i].real_dest)
+                { // 如果船在中转站(不在真正的目的地就一定中转站)，就直接去真正的目的地
+                    if (Boats[i].real_dest == -1)
+                    { // 如果真正的目的地是虚拟点，则go
+                        printf("go %d\n", i);
+                    }
+                    else if (Boats[i].real_dest >= 0)
+                    { // 如果真正的目的地是其他港口，则ship
+                        printf("ship %d %d\n", i, Boats[i].real_dest);
+                    }
+                    continue;
+                }
+                // 剩下的情况是在真正的目的地港口并且可以正常装货
+                if (Boats[i].goods_num >= BoatCapacity)
+                { // 如果船装满了，一定要出发去虚拟点
+                    BoatToVirtual(i);
+
+                    // 如果在最后关头装满了货，那么出发并且解除该港口的标记
+                    if (BERTH_TRAN_LEN + VirtualToBerthTime[Boats[i].pos] >= MAX_FRAME - Frame)
+                    {
+                        Berths[Boats[i].pos].is_last = 0;
+                    }
+
+                    continue;
+                }
+                else if (Berths[Boats[i].pos].goods_queue.size() == 0)
+                { // 港口没货物了（没有满速率装货也没关系，这一帧有一个货也是值的）
+                    int best_berth_or_go = FindBestBerthOrGoFromBerth(i);
+                    if (best_berth_or_go == -1)
+                    {
+                        BoatToVirtual(i);
+                    }
+                    else if (best_berth_or_go >= 0 && best_berth_or_go != Boats[i].pos)
+                    {
+                        Berths[Boats[i].pos].boat_num--;
+                        Berths[best_berth_or_go].boat_num++;
+                        Boats[i].real_dest = best_berth_or_go;
+                        printf("ship %d %d\n", i, best_berth_or_go);
+
+                        // 如果在最后关头进行最后一次调度到其他港口的操作，那么给那个港口进行标记
+                        if (2 * BERTH_TRAN_LEN + VirtualToBerthTime[best_berth_or_go] >= MAX_FRAME - Frame)
+                        {
+                            Berths[best_berth_or_go].is_last = 1;
+                        }
+                    }
+                    else // 剩下的正常装货
+                    {
+                        // 如果在最后关头选择继续留在该港口，那么给这个港口进行标记
+                        if (BERTH_TRAN_LEN + VirtualToBerthTime[best_berth_or_go] >= MAX_FRAME - Frame)
+                        {
+                            Berths[best_berth_or_go].is_last = 1;
+                        }
+                    }
+                }
+                else // 剩下的正常装货
+                {
+                }
+            }
+        }
+        else if (Boats[i].status == 2)
+        { // 船在等待
+            if (Boats[i].pos != Boats[i].real_dest)
+            { // 如果船在中转站(不在真正的目的地就一定中转站)，就直接去真正的目的地
+                if (Boats[i].real_dest == -1)
+                { // 如果真正的目的地是虚拟点，则go
+                    printf("go %d\n", i);
+                }
+                else if (Boats[i].real_dest >= 0)
+                { // 如果真正的目的地是其他港口，则ship
+                    printf("ship %d %d\n", i, Boats[i].real_dest);
+                }
+                continue;
+            }
+            else
+            { // 基本不会出现，因为我只去没船在的以及没船要去的（以防万一，再找个港口）
+              //
+            }
+        }
+    }
+}
+
+// 最后装载货物
+void LoadGoods()
+{
+    for (int i = 0; i < BOAT_NUM; i++)
+    {
+        if (Boats[i].status == 1 && Boats[i].pos != -1 && Boats[i].real_dest == Boats[i].pos) // 船只在装货
+        {
+            Boats[i].load_goods();
+        }
+    }
+}
+
 // 输出实际金钱与我们自己算的金钱
 void PrintMoney(ofstream &out_file)
 {
-    out_file << "------Money Info------" << endl;
-    out_file << "real_money: " << Money << endl;
-    out_file << "our_money: " << OurMoney << endl;
+    out_file << "Real money: " << Money << endl;
+    out_file << "Our  money: " << OurMoney << endl;
 }
 
-// 输出每个港口的货物量以及货物总价值
+// 输出每个港口的货物量，货物总价值以及是否聚焦
 void PrintBerthGoodsInfo(ofstream &out_file)
 {
-    out_file << "------Berth Info------" << endl;
-    int berth_goods_value[BERTH_NUM] = {};
-    int berth_goods_num[BERTH_NUM] = {};
+    int berth_goods_value[BERTH_NUM] = {0};
+    int berth_goods_num[BERTH_NUM] = {0};
     for (int i = 0; i < BERTH_NUM; i++)
     {
+        queue<int> tmp = Berths[i].goods_queue;
         for (int j = 0; j < Berths[i].goods_queue.size(); j++)
         {
-            queue<int> tmp = Berths[i].goods_queue;
             int goods_index = tmp.front();
             tmp.pop();
             berth_goods_value[i] += AllGoods[goods_index].val;
             berth_goods_num[i]++;
         }
-        out_file << "Berth " << i << " has " << berth_goods_num[i] << " goods, total value is " << berth_goods_value[i] << endl;
+        out_file << "Berth " << i << " has " << left << setw(3) << berth_goods_num[i] << " goods, value is " << setw(5) << berth_goods_value[i] << ", focus is " << Berths[i].is_last << endl;
     }
 }
 
-// 输出最后船的聚焦信息
-void PrintBerthFocus(ofstream &out_file)
-{
-    out_file << "------Berth Focus------" << endl;
-    for (int i = 0; i < BERTH_NUM; i++)
-    {
-        out_file << "Berth " << i << " is focus " << Berths[i].is_last << endl;
-    }
-}
-
-// 输出每艘船的位置
+// 输出每艘船的信息
 void PrintBoatInfo(ofstream &out_file)
 {
-    out_file << "------Boat Info------" << endl;
     out_file << "Boat Capacity: " << BoatCapacity << endl;
     for (int i = 0; i < BOAT_NUM; i++)
     {
-        out_file << "Boat " << i << "'s status is " << Boats[i].status << ", is at " << Boats[i].pos << ", is going to real_dest " << Boats[i].real_dest << ", have goods_num " << Boats[i].goods_num << endl;
+        out_file << "Boat " << i << "'s status is " << Boats[i].status << ", is at/going to " << setw(2) << Boats[i].pos
+                 << ", real dest " << setw(2) << Boats[i].real_dest << ", goods num " << setw(3) << Boats[i].goods_num << endl;
     }
 }
 
 // 输出机器人所获得的总金额
 void PrintRobotsMoney(ofstream &out_file)
 {
-    out_file << "------Robot Money------" << endl;
+    out_file << "----------------------------Robot Money-------------------------------" << endl;
     out_file << "Robot Money: " << RobotMoney << endl;
 }
 
 // 输出所有的虚拟点到港口时间
 void PrintVirtualToBerthTime(ofstream &out_file)
 {
-    out_file << "------Virtual To Berth Time------" << endl;
+    out_file << "------------------------Virtual To Berth Time-------------------------" << endl;
     for (int i = 0; i < BERTH_NUM; i++)
     {
-        out_file << "Virtual " << i << " to Berth Time: " << VirtualToBerthTime[i] << endl;
+        out_file << "Virtual " << i << " to Berth Time: " << left << setw(6) << VirtualToBerthTime[i] << endl;
     }
 }
 
@@ -1700,11 +1644,6 @@ void Print(ofstream &out_file, int interval)
         PrintVirtualToBerthTime(out_file);
     }
 
-    if (Frame == MAX_FRAME - 1)
-    {
-        PrintRobotsMoney(out_file);
-    }
-
     if (Frame % interval != 0)
     {
         return;
@@ -1712,11 +1651,14 @@ void Print(ofstream &out_file, int interval)
 
     if (out_file.is_open())
     {
-        out_file << "------------Frame: " << Frame << "------------" << endl;
+        out_file << "----------------------------Frame: " << left << setw(5) << Frame << "------------------------------" << endl;
         PrintMoney(out_file);
         PrintBerthGoodsInfo(out_file);
         PrintBoatInfo(out_file);
-        PrintBerthFocus(out_file);
+    }
+    if (Frame == MAX_FRAME - 1)
+    {
+        PrintRobotsMoney(out_file);
     }
 }
 
@@ -1744,11 +1686,17 @@ int main()
 {
     Init();
 
-    // ofstream out_file = CreateFile();
+#ifdef DEBUG
+    ofstream out_file = CreateFile();
+#endif
 
     for (int frame = 1; frame <= MAX_FRAME; frame++)
     {
-        // Print(out_file, 50);
+
+#ifdef DEBUG
+        Print(out_file, 1);
+#endif
+
         Input();
         RobotDsipatchGreedy();
         AvoidCollision();
@@ -1760,785 +1708,9 @@ int main()
         fflush(stdout);
     }
 
-    // out_file.close(); // 关闭文件
+#ifdef DEBUG
+    out_file.close();
+#endif
 
     return 0;
 }
-
-// struct Road // 物品id、最近港口、机器人下一步方向
-// {
-//     int goods_index;
-//     int berth_index;
-//     int next_dir;
-
-//     Road() {}
-//     Road(int goods_index, int berth_index, int next_dir)
-//     {
-//         this->goods_index = goods_index;
-//         this->berth_index = berth_index;
-//         this->next_dir = next_dir;
-//     }
-// };
-
-// 使用BFS算法找到最好的3个物品,返回物品index、最近港口和下一步方向
-// vector<Road> ToGoodsBFS(int robot_index, int total_step)
-// {
-//     int robot_x, robot_y; // 机器人的坐标
-//     robot_x = Robots[robot_index].x;
-//     robot_y = Robots[robot_index].y;
-//
-//     int visited[N][N] = {0}; // 访问标记数组
-//     queue<pair<int, int>> q; // BFS队列,坐标值
-//     queue<int> direction;    // 用于记录到达每个位置的移动方向
-//     vector<Road> best_goods; // 保存返回的物品
-//
-//     q.push({robot_x, robot_y});    // 将机器人初始位置入队
-//     visited[robot_x][robot_y] = 1; // 标记为已访问
-//     direction.push(-1);            // -1表示初始位置，没有实际方向意义
-//
-//     int step = 0; // 当前步数
-//     while (!q.empty() && step < total_step)
-//     {
-//         int min_val = 201; // 当前最小价值
-//         int mid_val;       // 第二小价值
-//         int max_val = 0;   // 当前最大价值
-//
-//         int size = q.size();
-//         step++;
-//         for (int i = 0; i < size; ++i)
-//         {
-//             auto [x, y] = q.front();
-//             q.pop();
-//             int dir = direction.front();
-//             direction.pop();
-//
-//             if (World[x][y] - 100 >= 0 && step <= AllGoods[World[x][y] - 100].refresh_frame)
-//             { // 找到物品
-//                 int berth_index;
-//                 double current_val = CalculateGoodsValue(World[x][y] - 100, step, berth_index); // 计算物品性价比
-//                 if (best_goods.size() < 3)
-//                 { // 已找到小于三个
-//                     if (min_val > current_val)
-//                     { // 最小价值总是插在末尾
-//                         if (min_val != 201)
-//                         { // 不是第一个插入的
-//                             mid_val = min_val;
-//                         }
-//                         min_val = current_val;
-//                         best_goods.push_back(Road(World[x][y] - 100, berth_index, dir));
-//                     }
-//                     else
-//                     {
-//                         if (max_val < current_val)
-//                         { // 最大的插在开头
-//                             max_val = current_val;
-//                             best_goods.insert(best_goods.begin(), Road(World[x][y] - 100, berth_index, dir));
-//                         }
-//                         else
-//                         {
-//                             mid_val = max_val;
-//                             best_goods.insert(++best_goods.begin(), Road(World[x][y] - 100, berth_index, dir));
-//                         }
-//                     }
-//                 }
-//                 else
-//                 { // 保留最大的3个
-//                     if (min_val <= current_val)
-//                     { // 最小价值总是插在末尾
-//                         if (max_val < current_val)
-//                         { // 当前最大
-//                             min_val = mid_val;
-//                             mid_val = max_val;
-//                             max_val = current_val;
-//                             best_goods.insert(best_goods.begin(), Road(World[x][y] - 100, berth_index, dir));
-//                             best_goods.pop_back(); // 弹出最小的
-//                         }
-//                         else if (mid_val <= current_val)
-//                         { // 当前为第二小
-//                             min_val = mid_val;
-//                             mid_val = current_val;
-//                             best_goods.pop_back(); // 弹出最小的
-//                             best_goods.insert(++best_goods.begin(), Road(World[x][y] - 100, berth_index, dir));
-//                         }
-//                         else
-//                         { // 当前最小
-//                             min_val = current_val;
-//                             best_goods.pop_back();
-//                             best_goods.push_back(Road(World[x][y] - 100, berth_index, dir));
-//                         }
-//                     }
-//                 }
-//             }
-//
-//             for (int d = 0; d < 4; ++d)
-//             { // 检查四个方向
-//                 int nx = x + DX[d];
-//                 int ny = y + DY[d];
-//
-//                 if (IsValid(nx, ny) && !visited[nx][ny])
-//                 {                        // 检查下一步是否可走
-//                     visited[nx][ny] = 1; // 标记已走过
-//                     q.push({nx, ny});    // 存储下一步位置
-//                     direction.push(d);   // 存储对应的方向
-//                 }
-//             }
-//         }
-//     }
-//     return best_goods;
-// }
-
-// // 每个机器人本帧动作
-// void RobotDispatch()
-// {
-//     vector<vector<Road>> roads; // 每个机器人各自最好的几个商品和对应的下一步
-//     for (int i = 0; i < ROBOT_NUM; i++)
-//     {
-//         vector<Road> current_road; // 当前机器人BFS结果
-//         if (Robots[i].is_dead == 1 or Robots[i].status == 0)
-//         { // 若机器人不能到港口就不考虑
-//             roads.push_back(current_road);
-//             Robots[i].dir = -1;
-//             continue;
-//         }
-
-//         if (Robots[i].is_goods == 1)
-//         { // 若拿着物品
-//             roads.push_back(current_road);
-//             if (IsInBerth(i))
-//             { // 到达港口
-//                 Robots[i].action = 1;
-//                 Robots[i].dir = -1;
-//             }
-//             else
-//             { // 没到港口，沿着图走
-//                 Robots[i].dir = BerthPath[Robots[i].berth_index][Robots[i].x][Robots[i].y];
-//             }
-//             continue;
-//         }
-
-//         current_road = ToGoodsBFS(i, 80);
-//         roads.push_back(current_road); // 最多找80步
-//     }
-
-//     for (int i = 0; i < ROBOT_NUM; i++)
-//     {
-//         if (roads[i].empty())
-//         { // 若没有bfs到物品或机器人不能到港口或已经拿了物品
-//             if (Robots[i].is_dead != 1 && Robots[i].is_goods != 1)
-//             { // 没拿物品也没死
-//                 Robots[i].dir = -1;
-//             }
-//             continue;
-//         }
-
-//         if (IsInGoods(i))
-//         {                                             // 在物品上
-//             AllGoods[Robots[i].goods_index].lock = 0; // 物品解锁
-//             int j = 0;
-//             for (j = 0; j < roads[i].size(); j++)
-//             {
-//                 int goods_id = roads[i][j].goods_index;
-//                 if (AllGoods[goods_id].lock == 0 && AllGoods[goods_id].x == Robots[i].x && AllGoods[goods_id].y == Robots[i].y)
-//                 { // 确认过眼神，是我要拿的人
-//                     // 拿物品
-//                     AllGoods[goods_id].lock = 1;                                                // 物品上锁
-//                     Robots[i].goods_index = goods_id;                                           // 机器人拿的物品编号
-//                     Robots[i].berth_index = roads[i][j].berth_index;                            // 要去的港口编号
-//                     Robots[i].action = 0;                                                       // 拿物品的动作
-//                     Robots[i].dir = BerthPath[Robots[i].berth_index][Robots[i].x][Robots[i].x]; // 按图找方向
-//                     World[Robots[i].x][Robots[i].x] = 0;                                        // 地图上去除物品
-//                     break;
-//                 }
-//             }
-//             if (j == roads[i].size())
-//             { // 不是我要拿的
-//                 // 按road走
-//                 int k = 0;
-//                 for (k = 0; k < roads[i].size(); k++)
-//                 {
-//                     int goods_id = roads[i][k].goods_index;
-//                     if (AllGoods[goods_id].lock == 0)
-//                     {
-//                         if (Robots[i].goods_index != goods_id)
-//                         {
-//                             AllGoods[Robots[i].goods_index].lock = 0; // 物品解锁
-//                         }
-//                         Robots[i].goods_index = goods_id;     // 机器人要拿的物品编号
-//                         AllGoods[goods_id].lock = 1;          // 物品上锁
-//                         Robots[i].dir = roads[i][k].next_dir; // 机器人方向
-//                         Robots[i].berth_index = roads[i][k].berth_index; //物品最近港口
-//                         break;
-//                     }
-//                 }
-//                 if (k == roads[i].size())
-//                 {                                             // 没东西拿
-//                     AllGoods[Robots[i].goods_index].lock = 0; // 物品解锁
-//                     Robots[i].dir = -1;                       // 罚站
-//                 }
-//             }
-//         }
-//         else
-//         { // 按road走
-//             int j = 0;
-//             for (j = 0; j < roads[i].size(); j++)
-//             {
-//                 int goods_id = roads[i][j].goods_index;
-//                 if (AllGoods[goods_id].lock == 0)
-//                 {
-//                     if (Robots[i].goods_index != goods_id)
-//                     {
-//                         AllGoods[Robots[i].goods_index].lock = 0; // 物品解锁
-//                     }
-//                     Robots[i].goods_index = goods_id;     // 机器人要拿的物品编号
-//                     AllGoods[goods_id].lock = 1;          // 物品上锁
-//                     Robots[i].dir = roads[i][j].next_dir; // 机器人方向
-//                     Robots[i].berth_index = roads[i][j].berth_index; //物品最近港口
-//                     break;
-//                 }
-//             }
-//             if (j == roads[i].size())
-//             {                                             // 没东西拿
-//                 AllGoods[Robots[i].goods_index].lock = 0; // 物品解锁
-//                 Robots[i].dir = -1;                       // 罚站
-//             }
-//         }
-//     }
-// }
-
-// 返回泊位上有货物的泊位编号
-// set<int> BusyBerth()
-//{
-//    set<int> busy_berth;
-//    for (int i = 0; i < BERTH_NUM; i++)
-//    {
-//        if (Berths[i].boat_num > 0)
-//        {
-//            busy_berth.insert(i);
-//        }
-//    }
-//    return busy_berth;
-//}
-
-// 返回最佳泊位编号
-// int FindBestBerth(set<int> busy_berth)
-//{
-//    double value_time = 0;
-//    int berth_tmp = -1;
-//    for (int i = 0; i < BERTH_NUM; i++)
-//    {
-//        if (Berths[i].goods_queue.empty()) // 泊位上没有货物
-//        {
-//            continue;
-//        }
-//        else if (busy_berth.find(i) == busy_berth.end()) // 泊位是空闲的
-//        {
-//            int load_time = (int)Berths[i].goods_queue.size() / Berths[i].loading_speed;
-//            double value_time_tmp = (double)Berths[i].sum_goods_value() / (load_time + Berths[i].transport_time * 2);
-//            if (value_time_tmp > value_time)
-//            {
-//                value_time = value_time_tmp;
-//                berth_tmp = i;
-//            }
-//        }
-//    }
-//    return berth_tmp;
-//}
-
-//                else if (Frame == 100) //第50帧了船还在初始点就赶紧滚
-//                {
-//                    for (int j = 0; j < BERTH_NUM; j++)
-//                    {
-//                        if (Berths[j].boat_num == 0)
-//                        {
-//                            Boats[i].real_dest = j;
-//                            printf("ship %d %d\n", i, VirtualToBerthTransit[j]);
-//                            Berths[j].boat_num++;
-//                            break; //这个是退出里循环，但不退出外循环，break还是要慎用的
-//                        }
-//                    }
-//                }
-
-// pair<int, int> berth_robot_num[BERTH_NUM]; // 每个港口作为目标匹配的机器人数
-// // 初始化，所有机器人数目设置为0
-// for (int i = 0; i < BERTH_NUM; i++)
-// {
-//     berth_robot_num[i] = {i, 0};
-// }
-// // 若有人没匹配上
-// for (int i = 0; i < ROBOT_NUM; i++)
-// {
-//     // 先统计每个港口作为目标匹配的机器人数
-//     if (Robots[i].berth_index != -1)
-//     {
-//         berth_robot_num[Robots[i].berth_index].second++;
-//     }
-// }
-// // 按港口机器人数排序
-// sort(berth_robot_num, berth_robot_num + BERTH_NUM,
-//      [](const std::pair<int, int> &a, const std::pair<int, int> &b)
-//      {
-//          return a.second < b.second;
-//      });
-// for (int i = 0; i < ROBOT_NUM; i++)
-// {
-//     // 没匹配上的机器人向人最少的港口移动
-//     if (robots_match[i] == 0)
-//     { // 没匹配上
-//         int j = 0;
-//         for (j = 0; j < BERTH_NUM; j++)
-//         {
-//             if (BerthPathLenth[berth_robot_num[j].first][Robots[i].x][Robots[i].y] >= 0)
-//             {
-//                 Robots[i].dir = BerthPath[berth_robot_num[j].first][Robots[i].x][Robots[i].y]; // 向人最少的港口移动一步
-//                 break;
-//             }
-//         }
-//         if (j == BERTH_NUM)
-//         {
-//             Robots[i].dir = -1; // 到不了港口罚站
-//         }
-//     }
-// }
-// void AvoidCollision()
-// {
-
-//     // if (Frame == 13445)
-//     // {
-//     //     file = fopen("debug.txt", "w");
-//     //     // 将用户输入的内容写入文件
-//     //     if (file != NULL)
-//     //     {
-//     //         fprintf(file, "13445 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
-//     //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
-//     //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
-//     //     }
-//     // }
-//     // if (Frame == 13446)
-//     // {
-//     //     // 将用户输入的内容写入文件
-//     //     if (file != NULL)
-//     //     {
-//     //         fprintf(file, "13446 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
-//     //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
-//     //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
-//     //     }
-//     // }
-//     bool is_collision = true;                     // 本次是否有碰撞
-//     int detect_num = 0;                           // 检测的次数
-//     bool is_collision_robot[ROBOT_NUM] = {false}; // 对每个机器人判断本轮是否有冲突
-//     while (is_collision)
-//     {
-//         detect_num++;
-//         is_collision = false;
-//         // 对每个机器人进行碰撞检测
-//         for (int ri = 0; ri < ROBOT_NUM; ri++)
-//         {
-//             // 如果这个机器人没有被困死并且下一步会移动（对于每个机器人只考虑主动碰撞，如果是被碰，会被其他机器人主动碰）
-//             if (Robots[ri].is_dead == 0 && Robots[ri].dir >= 0)
-//             {
-//                 // 机器人i下一步的位置
-//                 int nx_ri = Robots[ri].x + DX[Robots[ri].dir];
-//                 int ny_ri = Robots[ri].y + DY[Robots[ri].dir];
-//                 // 检测除自己之外其他机器人会不会在这个位置上
-//                 // （不移动的机器人看当前位置，会移动的机器人分析是对冲还是抢位置）
-//                 for (int rj = 0; rj < ROBOT_NUM; rj++)
-//                 {
-//                     if (ri != rj)
-//                     {
-//                         // 碰上不移动的机器人j
-//                         if (Robots[rj].dir < 0 && Robots[rj].x == nx_ri && Robots[rj].y == ny_ri)
-//                         {
-//                             is_collision = true;
-//                             // ？若不动的处于恢复状态，我垂直移动，不行我就罚站
-//                             if (Robots[rj].status == 0)
-//                             {
-//                                 if (!CrashAvoid(ri))
-//                                 {
-//                                     Robots[ri].dir = -1;
-//                                 };
-//                                 is_collision_robot[ri] = true;
-//                             }
-//                             // 若不动的只是在罚站，他垂直移动
-//                             else
-//                             {
-//                                 if (is_collision_robot[ri] && is_collision_robot[rj])
-//                                 {                   // 若都有碰撞过
-//                                     CrashAvoid(rj); // 他垂直移动
-//                                     is_collision_robot[rj] = true;
-//                                 }
-//                                 else if (is_collision_robot[ri])
-//                                 {                   // 若我有碰撞过
-//                                     CrashAvoid(rj); // 他垂直移动
-//                                     is_collision_robot[rj] = true;
-//                                 }
-//                                 else if (is_collision_robot[rj])
-//                                 {                   // 若他有碰撞过
-//                                     CrashAvoid(ri); // 我垂直移动
-//                                     is_collision_robot[ri] = true;
-//                                 }
-//                                 else
-//                                 {                   // 若都没有碰撞过
-//                                     CrashAvoid(rj); // 他垂直移动
-//                                     is_collision_robot[rj] = true;
-//                                 }
-//                             }
-//                             // if (Frame == 13446 && rj == 9)
-//                             // {
-//                             //     // 将用户输入的内容写入文件
-//                             //     if (file != NULL)
-//                             //     {
-//                             //         fprintf(file, "ri: %d\n", ri);
-//                             //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index, is_collision_robot[4]);
-//                             //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index, is_collision_robot[9]);
-//                             //     }
-//                             // }
-//                             break;
-//                         }
-//                         // 碰上移动的机器人j
-//                         if (Robots[rj].dir >= 0)
-//                         {
-//                             int nx_rj = Robots[rj].x + DX[Robots[rj].dir];
-//                             int ny_rj = Robots[rj].y + DY[Robots[rj].dir];
-//                             // 对冲
-//                             if (Robots[rj].x == nx_ri && Robots[rj].y == ny_ri && Robots[ri].x == nx_rj && Robots[ri].y == ny_rj)
-//                             {
-//                                 is_collision = true;
-//                                 // // 性价比低的机器人避让（优先让两边，实在不行往后面退，再不行就让性价比高的让）
-//                                 // if (Robots[ri].is_goods && Robots[rj].is_goods)
-//                                 // { // 都拿物品
-//                                 //     if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
-//                                 //     { // 若都有/都没有碰撞过
-//                                 //         if (GetGoodsRobotsCompair(ri, rj))
-//                                 //         { // 我拿的好
-//                                 //             if (!CrashAvoid(rj))
-//                                 //             {
-//                                 //                 CrashAvoid(ri);
-//                                 //                 is_collision_robot[ri] = true;
-//                                 //             }
-//                                 //             else
-//                                 //             {
-//                                 //                 is_collision_robot[rj] = true;
-//                                 //             }
-//                                 //         }
-//                                 //         else
-//                                 //         { // 别人拿的好
-//                                 //             if (!CrashAvoid(ri))
-//                                 //             {
-//                                 //                 CrashAvoid(rj);
-//                                 //                 is_collision_robot[rj] = true;
-//                                 //             }
-//                                 //             else
-//                                 //             {
-//                                 //                 is_collision_robot[ri] = true;
-//                                 //             }
-//                                 //         }
-//                                 //     }
-//                                 //     else if (is_collision_robot[ri])
-//                                 //     { // 只有我有冲突过
-//                                 //         if (!CrashAvoid(rj))
-//                                 //         {
-//                                 //             CrashAvoid(ri);
-//                                 //             is_collision_robot[ri] = true;
-//                                 //         }
-//                                 //         else
-//                                 //         {
-//                                 //             is_collision_robot[rj] = true;
-//                                 //         }
-//                                 //     }
-//                                 //     else
-//                                 //     { // 只有他冲突过
-//                                 //         if (!CrashAvoid(ri))
-//                                 //         {
-//                                 //             CrashAvoid(rj);
-//                                 //             is_collision_robot[rj] = true;
-//                                 //         }
-//                                 //         else
-//                                 //         {
-//                                 //             is_collision_robot[ri] = true;
-//                                 //         }
-//                                 //     }
-//                                 // }
-//                                 // else if (!Robots[ri].is_goods && !Robots[rj].is_goods)
-//                                 // { // 都没拿物品
-//                                 //     if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
-//                                 //     { // 若都有/都没有碰撞过
-//                                 //         if (NoGoodsRobotsCompair(ri, rj))
-//                                 //         { // 我拿的好
-//                                 //             if (!CrashAvoid(rj))
-//                                 //             {
-//                                 //                 CrashAvoid(ri);
-//                                 //                 is_collision_robot[ri] = true;
-//                                 //             }
-//                                 //             else
-//                                 //             {
-//                                 //                 is_collision_robot[rj] = true;
-//                                 //             }
-//                                 //         }
-//                                 //         else
-//                                 //         { // 别人拿的好
-//                                 //             if (!CrashAvoid(ri))
-//                                 //             {
-//                                 //                 CrashAvoid(rj);
-//                                 //                 is_collision_robot[rj] = true;
-//                                 //             }
-//                                 //             else
-//                                 //             {
-//                                 //                 is_collision_robot[ri] = true;
-//                                 //             }
-//                                 //         }
-//                                 //     }
-//                                 //     else if (is_collision_robot[ri])
-//                                 //     { // 只有我有冲突过
-//                                 //         if (!CrashAvoid(rj))
-//                                 //         {
-//                                 //             CrashAvoid(ri);
-//                                 //             is_collision_robot[ri] = true;
-//                                 //         }
-//                                 //         else
-//                                 //         {
-//                                 //             is_collision_robot[rj] = true;
-//                                 //         }
-//                                 //     }
-//                                 //     else
-//                                 //     { // 只有他冲突过
-//                                 //         if (!CrashAvoid(ri))
-//                                 //         {
-//                                 //             CrashAvoid(rj);
-//                                 //             is_collision_robot[rj] = true;
-//                                 //         }
-//                                 //         else
-//                                 //         {
-//                                 //             is_collision_robot[ri] = true;
-//                                 //         }
-//                                 //     }
-//                                 // }
-//                                 // else if (!Robots[ri].is_goods && Robots[rj].is_goods)
-//                                 // { // 我没拿别人拿了，我让，ri优先让两边
-//                                 //     if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
-//                                 //     { // 若都有/都没有碰撞过
-//                                 //         if (!CrashAvoid(ri))
-//                                 //         {
-//                                 //             CrashAvoid(rj);
-//                                 //             is_collision_robot[rj] = true;
-//                                 //         }
-//                                 //         else
-//                                 //         {
-//                                 //             is_collision_robot[ri] = true;
-//                                 //         }
-//                                 //     }
-//                                 //     else if (is_collision_robot[ri])
-//                                 //     { // 只有我有冲突过
-//                                 //         if (!CrashAvoid(rj))
-//                                 //         {
-//                                 //             CrashAvoid(ri);
-//                                 //             is_collision_robot[ri] = true;
-//                                 //         }
-//                                 //         else
-//                                 //         {
-//                                 //             is_collision_robot[rj] = true;
-//                                 //         }
-//                                 //     }
-//                                 //     else
-//                                 //     { // 只有他冲突过
-//                                 //         if (!CrashAvoid(ri))
-//                                 //         {
-//                                 //             CrashAvoid(rj);
-//                                 //             is_collision_robot[rj] = true;
-//                                 //         }
-//                                 //         else
-//                                 //         {
-//                                 //             is_collision_robot[ri] = true;
-//                                 //         }
-//                                 //     }
-//                                 // }
-//                                 // else
-//                                 // { // 别人没拿我拿了，别人让
-//                                 //     if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
-//                                 //     { // 若都有/都没有碰撞过
-//                                 //         if (!CrashAvoid(rj))
-//                                 //         {
-//                                 //             CrashAvoid(ri);
-//                                 //             is_collision_robot[ri] = true;
-//                                 //         }
-//                                 //         else
-//                                 //         {
-//                                 //             is_collision_robot[rj] = true;
-//                                 //         }
-//                                 //     }
-//                                 //     else if (is_collision_robot[ri])
-//                                 //     { // 只有我有冲突过
-//                                 //         if (!CrashAvoid(rj))
-//                                 //         {
-//                                 //             CrashAvoid(ri);
-//                                 //             is_collision_robot[ri] = true;
-//                                 //         }
-//                                 //         else
-//                                 //         {
-//                                 //             is_collision_robot[rj] = true;
-//                                 //         }
-//                                 //     }
-//                                 //     else
-//                                 //     { // 只有他冲突过
-//                                 //         if (!CrashAvoid(ri))
-//                                 //         {
-//                                 //             CrashAvoid(rj);
-//                                 //             is_collision_robot[rj] = true;
-//                                 //         }
-//                                 //         else
-//                                 //         {
-//                                 //             is_collision_robot[ri] = true;
-//                                 //         }
-//                                 //     }
-//                                 // }
-//                                 // if (Frame == 13446 && rj == 9)
-//                                 // {
-//                                 //     // 将用户输入的内容写入文件
-//                                 //     if (file != NULL)
-//                                 //     {
-//                                 //         fprintf(file, "ri: %d\n", ri);
-//                                 //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index, is_collision_robot[4]);
-//                                 //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index, is_collision_robot[9]);
-//                                 //     }
-//                                 // }
-//                                 // break;
-//                                 HedgeAvoid(ri, rj, is_collision_robot);
-//                                 break;
-//                             }
-//                             // 抢位
-//                             if (nx_ri == nx_rj && ny_ri == ny_rj)
-//                             {
-//                                 is_collision = true;
-
-//                                 // 判断中间有没有机器人
-//                                 int rk = 0;
-//                                 for (rk = 0; rk < ROBOT_NUM; rk++)
-//                                 {
-//                                     if (Robots[rk].x == nx_ri && Robots[rk].y == ny_ri)
-//                                     {
-//                                         break;
-//                                     }
-//                                 }
-//                                 if (rk < ROBOT_NUM)
-//                                 {                                                  // 有机器人
-//                                     int nx_rk = Robots[rk].x + DX[Robots[rk].dir]; // rk下一步位置
-//                                     int ny_rk = Robots[rk].y + DY[Robots[rk].dir];
-
-//                                     if (Robots[rk].x == nx_ri && Robots[rk].y == ny_ri && Robots[ri].x == nx_rk && Robots[ri].y == ny_rk)
-//                                     { // k和i对冲
-//                                       HedgeAvoid(ri, rk, is_collision_robot);
-//                                     }
-//                                     else if (Robots[rk].x == nx_rj && Robots[rk].y == ny_rj && Robots[rj].x == nx_rk && Robots[rj].y == ny_rk)
-//                                     { // k和j对冲
-//                                       HedgeAvoid(rj, rk, is_collision_robot);
-//                                     }
-//                                     else
-//                                     { // k都不对冲，判断i,j抢位
-//                                       RushPosisionAvoid(ri, rj, is_collision_robot);
-//                                     }
-//                                 }
-//                                 else
-//                                 { // 没机器人，判断i，j抢位
-//                                    RushPosisionAvoid(ri, rj, is_collision_robot);
-//                                 }
-//                                 break;
-
-//                                 // if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
-//                                 // { // 若都有/都没有碰撞过
-//                                 //     // 有货物的优先走，另一个停下
-//                                 //     if (Robots[ri].is_goods && !Robots[rj].is_goods)
-//                                 //     {
-//                                 //         Robots[rj].dir = -1;
-//                                 //         is_collision_robot[rj] = true;
-//                                 //     }
-//                                 //     else if (Robots[rj].is_goods && !Robots[ri].is_goods)
-//                                 //     {
-//                                 //         Robots[ri].dir = -1;
-//                                 //         is_collision_robot[ri] = true;
-//                                 //     }
-//                                 //     // 都有货物或者都没有货物则比较性价比
-//                                 //     else if (Robots[ri].is_goods && Robots[rj].is_goods)
-//                                 //     {
-//                                 //         if (GetGoodsRobotsCompair(ri, rj))
-//                                 //         { // 我拿的好，别人停
-//                                 //             Robots[rj].dir = -1;
-//                                 //             is_collision_robot[rj] = true;
-//                                 //         }
-//                                 //         else
-//                                 //         { // 别人拿的好，我停
-//                                 //             Robots[ri].dir = -1;
-//                                 //             is_collision_robot[ri] = true;
-//                                 //         }
-//                                 //     }
-//                                 //     else
-//                                 //     {
-//                                 //         if (NoGoodsRobotsCompair(ri, rj))
-//                                 //         { // 我要拿的好，别人停
-//                                 //             Robots[rj].dir = -1;
-//                                 //             is_collision_robot[rj] = true;
-//                                 //         }
-//                                 //         else
-//                                 //         { // 别人要拿的好，我停
-//                                 //             Robots[ri].dir = -1;
-//                                 //             is_collision_robot[ri] = true;
-//                                 //         }
-//                                 //     }
-//                                 // }
-//                                 // else if (is_collision_robot[ri])
-//                                 // { // 只有我有冲突过
-//                                 //     Robots[rj].dir = -1;
-//                                 //     is_collision_robot[rj] = true;
-//                                 // }
-//                                 // else
-//                                 // { // 只有他有冲突过
-//                                 //     Robots[ri].dir = -1;
-//                                 //     is_collision_robot[ri] = true;
-//                                 // }
-//                                 // if (Frame == 13446 && rj == 9)
-//                                 // {
-//                                 //     // 将用户输入的内容写入文件
-//                                 //     if (file != NULL)
-//                                 //     {
-//                                 //         fprintf(file, "ri: %d\n", ri);
-//                                 //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index, is_collision_robot[4]);
-//                                 //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d is:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index, is_collision_robot[9]);
-//                                 //     }
-//                                 // }
-//                             }
-//                         }
-//                     }
-//                 }
-//                 // 如果有碰撞并且规避了，就跳出，需要重新检测碰撞
-//                 if (is_collision)
-//                 {
-//                     break;
-//                 }
-//             }
-//         }
-//         // 检测100次就不检测了
-//         if (detect_num >= 100)
-//         {
-//             break;
-//         }
-//     }
-//     // if (Frame == 13445)
-//     // {
-//     //     // 将用户输入的内容写入文件
-//     //     if (file != NULL)
-//     //     {
-//     //         fprintf(file, "13445 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
-//     //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
-//     //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
-//     //     }
-//     // }
-//     // if (Frame == 13446)
-//     // {
-//     //     // 将用户输入的内容写入文件
-//     //     if (file != NULL)
-//     //     {
-//     //         fprintf(file, "13446 \n1 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[1].dir, Robots[1].berth_index, Robots[1].is_goods, Robots[1].goods_index);
-//     //         fprintf(file, "4 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[4].dir, Robots[4].berth_index, Robots[4].is_goods, Robots[4].goods_index);
-//     //         fprintf(file, "9 dir:%d berth_index:%d is_goods:%d goods_index:%d\n", Robots[9].dir, Robots[9].berth_index, Robots[9].is_goods, Robots[9].goods_index);
-//     //     }
-//     //     fclose(file);
-//     // }
-// }
