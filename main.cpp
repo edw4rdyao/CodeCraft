@@ -16,7 +16,7 @@
 #include <mutex>
 #endif
 
-#define DEBUG
+// #define DEBUG
 
 using namespace std;
 
@@ -31,6 +31,15 @@ unsigned int BerthNum = 0;
 const int MAX_BOAT_NUM = 100;
 unsigned int BoatNum = 0;
 
+const int MAX_DELIVERY_NUM = 100;
+unsigned int DeliveryNum = 0;
+
+const int MAX_ROBOT_BUYING_NUM = 100;
+unsigned int RobotBuyingNum = 0;
+
+const int MAX_BOAT_BUYING_NUM = 100;
+unsigned int BoatBuyingNum = 0;
+
 const int N = 200;
 const int MAX_GOODS_NUM = 150010;
 const int MAX_LENGTH = 40000;
@@ -43,18 +52,47 @@ const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
 const int REV_DIR[4] = {1, 0, 3, 2}; // 上下左右的反方向（用于BFS记录路径）：下上右左
 
+// 4 2 0 ->
+// 5 3 1
+
+//    1 3 5
+// <- 0 2 4
+
+// ↑ 0 1
+//   2 3
+//   4 5
+
+//   5 4
+//   3 2
+//   1 0 ↓
+// 船体位置标号，核心点为4
+// 使用下面的数组可以从核心点开始遍历0, 1, 2, 3, 4, 5号位置
+const int DX_BOAT[4][6] = {{0, 1, 0, 1, 0, 1},     // 右
+                           {0, -1, 0, -1, -1},     // 左
+                           {-2, -2, -1, -1, 0, 0}, // 上
+                           {2, 2, 1, 1, 0, 0}};    // 下
+
+const int DY_BOAT[4][6] = {{2, 2, 1, 1, 0, 0},     // 右
+                           {-2, -2, -1, -1, 0, 0}, // 左
+                           {0, 1, 0, 1, 0, 1},     // 上
+                           {0, -1, 0, -1, 0, -1}}; // 下
+// 顺时针转：核心点变到0号位置
+// 逆时针转：核心点变到3号位置
+// 船：0右 1左 2上 3下，顺逆时针对应的方向
+const int CLOCKWISE[4] = {3, 2, 0, 1};
+const int ANTI_CLOCKWISE[4] = {2, 3, 1, 0};
+
 int OurMoney = 0;               // 自己算出来的金钱
 int RobotMoney = 0;             // 机器人拿的的钱
 int Money, BoatCapacity, Frame; // 金钱，船的容量，当前帧数
 unsigned int World[N][N];       // 地图
-unsigned int WorldGoods[N][N];  // 商品的位置
+int WorldGoods[N][N];           // 地图上每个位置的商品
 
-vector<int> BerthPath[MAX_BERTH_NUM][N][N]; // 泊位到每个点的最短路径(0: 上，1: 下，2: 左，3: 右)
-int BerthPathLength[MAX_BERTH_NUM][N][N];   // 泊位到每个点的最短路径长度
+vector<int> BerthPath[MAX_BERTH_NUM][N][N]; // 机器人泊位到每个点的最短路径第一步的可能方向(0: 上，1: 下，2: 左，3: 右)
+int BerthPathLength[MAX_BERTH_NUM][N][N];   // 机器人泊位到每个点的最短路径长度
 
-// int MaxVirtualToBerthTime;              // 虚拟点到港口的最大时间
-// int MinVirtualToBerthTime;              // 虚拟点到港口的最小时间
-int DeliveryToBerthTime[MAX_BERTH_NUM]; // 交货点到港口的最短时间
+int DeliveryToBerthTime[MAX_DELIVERY_NUM][MAX_BERTH_NUM];  // 交货点到港口的最短时间
+int BuyingToBerthTime[MAX_BOAT_BUYING_NUM][MAX_BERTH_NUM]; // 船舶购买点到港口的最短时间
 
 struct Goods
 {
@@ -73,15 +111,13 @@ int NextGoodsIndex = 1; // 下一个货物的编号
 
 struct Robot
 {
-    int x, y;     // 机器人的坐标
-    int is_goods; // 机器是否携带货物 (0：没有，1：有)
-    // int status;         // 机器人的状态（0：恢复，1：运行）
+    int x, y;           // 机器人的坐标
+    int is_goods;       // 机器是否携带货物 (0：没有，1：有)
     int dir;            // 机器人下一步运动的方向
     int goods_index;    // 机器人携带/想携带的货物编号
     int goods_distance; // 机器人和货物的距离
     int berth_index;    // 机器人要去的泊位编号
-    // int is_dead;        // 机器人是否被困死（0：没有，1：有）
-    int action; // 0:get()拿货物， 1:pull()放物品, -1没有动作
+    int action;         // 0:get()拿货物， 1:pull()放物品, -1没有动作
 
     Robot() {}
     Robot(int x, int y)
@@ -142,28 +178,40 @@ struct Boat
         this->goods_value = 0;
         this->dest = 0;
     }
-
-    void load_goods() // 装货
-    {
-        // if (this->goods_num < BoatCapacity && Berths[this->pos].goods_queue.size() > 0)
-        // {
-        //     int add_num = 0;
-        //     add_num = min(BoatCapacity - this->goods_num, int(Berths[this->pos].goods_queue.size()));
-        //     add_num = min(add_num, Berths[this->pos].loading_speed);
-        //     for (int j = 0; j < add_num; j++)
-        //     { // 将商品出队并且更新船上的商品数和商品总价值
-        //         int goods_id = Berths[this->pos].goods_queue.front();
-        //         this->goods_num += 1;
-        //         this->goods_value += AllGoods[goods_id].val;
-        //         Berths[this->pos].goods_queue.pop();
-        //     }
-        // }
-        // else
-        // {
-        //     return;
-        // }
-    }
 } Boats[MAX_BOAT_NUM];
+
+struct RobotBuying
+{
+    int x, y; // 机器人租赁点位置
+    RobotBuying() {}
+    RobotBuying(int x, int y)
+    {
+        this->x = x;
+        this->y = y;
+    }
+} RobotBuyings[MAX_ROBOT_BUYING_NUM];
+
+struct BoatBuying
+{
+    int x, y; // 船舶租赁点位置
+    BoatBuying() {}
+    BoatBuying(int x, int y)
+    {
+        this->x = x;
+        this->y = y;
+    }
+} BoatBuyings[MAX_BOAT_BUYING_NUM];
+
+struct Delivery
+{
+    int x, y; // 交货点位置
+    Delivery() {}
+    Delivery(int x, int y)
+    {
+        this->x = x;
+        this->y = y;
+    }
+} Deliveries[MAX_DELIVERY_NUM];
 
 struct Road
 {
@@ -192,42 +240,6 @@ struct Road
     }
 };
 
-struct RobotBuying
-{
-    int x, y; // 机器人租赁点位置
-    RobotBuying(int x, int y)
-    {
-        this->x = x;
-        this->y = y;
-    }
-};
-vector<RobotBuying> RobotBuyings;
-unsigned int RobotBuyingNum = 0;
-
-struct BoatBuying
-{
-    int x, y; // 船舶租赁点位置
-    BoatBuying(int x, int y)
-    {
-        this->x = x;
-        this->y = y;
-    }
-};
-vector<BoatBuying> BoatBuyings;
-unsigned int BoatBuyingNum = 0;
-
-struct Delivery
-{
-    int x, y; // 交货点位置
-    Delivery(int x, int y)
-    {
-        this->x = x;
-        this->y = y;
-    }
-};
-vector<Delivery> Deliveries;
-unsigned int DeliveryNum = 0;
-
 // 海洋部分 10000000
 // 主航道   11000000
 // 靠泊区   11100000
@@ -241,13 +253,13 @@ unsigned int DeliveryNum = 0;
 // 10000000  '*' ： 海洋
 // 11000000  '~' ： 海洋主航道
 // 00000011  '#' ： 障碍
-// 00000101 ='R' ： 机器人购买地块，同时该地块也是主干道
-// 11000000 ='S' ： 船舶购买地块，同时该地块也是主航道
-// 11010101 ?'B' ： 泊位
-// 11100000 ?'K' ： 靠泊区
+// 00000101  'R' ： 机器人购买地块，同时该地块也是主干道
+// 11000000  'S' ： 船舶购买地块，同时该地块也是主航道
+// 11010101  'B' ： 泊位
+// 11100000  'K' ： 靠泊区
 // 10000001  'C' ： 海陆立体交通地块
 // 11000101  'c' ： 海陆立体交通地块，同时为主干道和主航道
-// 11000000 ='T' ： 交货点
+// 11000000  'T' ： 交货点
 
 // 检查坐标(x, y)是否为机器人能走的合法块 xxxxxx01
 bool IsLandValid(int x, int y)
@@ -266,7 +278,7 @@ int IsOnBerth(int x, int y)
 {
     if ((x >= 0) && (x < N) && (y >= 0) && (y < N) && ((World[x][y] & 0b00010000) == 0b00010000))
     {
-        return World[x][y] >> 8;
+        return int(World[x][y] >> 8);
     }
     else
     {
@@ -279,7 +291,7 @@ int IsInBerthRange(int x, int y)
 {
     if ((x >= 0) && (x < N) && (y >= 0) && (y < N) && ((World[x][y] & 0b00110000) != 0))
     {
-        return World[x][y] >> 8;
+        return int(World[x][y] >> 8);
     }
     else
     {
@@ -391,6 +403,7 @@ vector<int> GetRandomDirection()
     return random_dir;
 }
 
+// 记录港口和靠泊区对应哪个港口
 void InitBerthInfo(int id)
 { // 对于id号港口，BFS更新其连通的靠泊区和泊位对应的地图表示
     queue<pair<int, int>> q;
@@ -417,8 +430,7 @@ void InitBerthInfo(int id)
 
 // 读取地图和初始信息
 void InitWorldInfo()
-{
-    // 读取地图
+{ // 读取地图
     for (int i = 0; i < N; i++)
     {
         for (int j = 0; j < N; j++)
@@ -449,14 +461,14 @@ void InitWorldInfo()
             { // 机器人购买地块
                 World[i][j] = 0b00000101;
                 // 记录机器人购买地块
-                RobotBuyings.push_back(RobotBuying(i, j));
+                RobotBuyings[RobotBuyingNum] = RobotBuying(i, j);
                 RobotBuyingNum++;
             }
             else if (ch == 'S')
             { // 船舶购买地块
                 World[i][j] = 0b11000000;
                 // 记录船舶购买地块
-                BoatBuyings.push_back(BoatBuying(i, j));
+                BoatBuyings[BoatBuyingNum] = BoatBuying(i, j);
                 BoatBuyingNum++;
             }
             else if (ch == 'B')
@@ -479,7 +491,7 @@ void InitWorldInfo()
             { // 交货点
                 World[i][j] = 0b11000000;
                 // 记录交货点
-                Deliveries.push_back(Delivery(i, j));
+                Deliveries[DeliveryNum] = Delivery(i, j);
                 DeliveryNum++;
             }
         }
@@ -568,8 +580,14 @@ void InitToBerthBFS()
     }
 }
 
-// 记录交货点到泊位之间的最短路径
+// 记录交货点到泊位之间的最短时间
 void InitDeliveryToBerth()
+{
+    //
+}
+
+// 记录船舶购买点到泊位的最短时间
+void InitBuyingToBerth()
 {
     //
 }
@@ -580,6 +598,7 @@ void Init()
     InitWorldInfo();
     InitToBerthBFS();
     InitDeliveryToBerth();
+    InitBuyingToBerth();
     // 输出OK
     printf("OK\n");
     fflush(stdout);
@@ -1352,299 +1371,24 @@ void PrintRobotsIns()
     }
 }
 
-// 船去虚拟点
-void BoatToVirtual(int boat_index)
+// 在交货点找一个最好的港口出发
+int FindBestBerthFromDelivery(int boat_index)
 {
-    //
 }
 
-// // 在虚拟点找一个最好的港口出发
-int FindBestBerthFromVirtual(int boat_index)
-{
-//     int best_berth = -1;
-//     double max_value = 0;
-//     for (int i = 0; i < BerthNum; i++)
-//     { // 对于每一个港口
-//         if (Berths[i].boat_num == 0)
-//         { // 只考虑没有船在或者要去的港口
-//             int to_time = DeliveryToBerthTime[i];
-//             if (to_time * 2 < MAX_FRAME - Frame)
-//             { // 确保其过去之后可以回来
-//                 // 估算过去之后货物增加的数量
-//                 double add_goods_num = (double)Berths[i].total_goods_num / (double)Frame * (double)to_time;
-//                 double berth_all_value = 0;
-//                 // 模拟该船装货物
-//                 int time_first = 0;
-//                 double time_second = 0;
-//                 int rest_load_time = MAX_FRAME - Frame - to_time * 2; // 最多能给你多少时间装货
-//                 bool time_out = false;                                // 是否超过了能装货的最短时间
-//                 int loaded_goods_num = 0;                             // 已经装了的货数量
-
-//                 queue<int> tmp = Berths[i].goods_queue;
-//                 while (!tmp.empty())
-//                 { // 先装已有的货，并且更新已经用了的时间
-//                     if (time_first >= rest_load_time)
-//                     { // 超时了，就记录一下，并且不装了
-//                         time_out = true;
-//                         break;
-//                     }
-//                     loaded_goods_num++; // 装一个货
-//                     time_first = (loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
-//                     berth_all_value += AllGoods[tmp.front()].val;
-//                     tmp.pop();
-//                     if (loaded_goods_num >= BoatCapacity)
-//                     { // 已经装满了，就不装了
-//                         break;
-//                     }
-//                 }
-
-//                 if (loaded_goods_num < BoatCapacity && !time_out)
-//                 { // 没有装满并且还有时间装（那就装预计增加的，装多少取决于剩余时间内能装的，多少容量以及还有多少货，三者中的最小值）
-//                     double load_num_again = min(rest_load_time * Berths[i].loading_speed, BoatCapacity - loaded_goods_num);
-//                     load_num_again = min(load_num_again, add_goods_num);
-//                     // 这些货的价值和时间
-//                     time_second += (load_num_again / Berths[i].loading_speed);
-//                     berth_all_value += (load_num_again * 100.0);
-//                 }
-
-//                 // 计算性价比
-//                 berth_all_value /= (to_time * 2 + time_first + time_second);
-//                 if (berth_all_value > max_value)
-//                 {
-//                     max_value = berth_all_value;
-//                     best_berth = i;
-//                 }
-//             }
-//         }
-//     }
-//     return best_berth;
-}
-
-// 在港口选择其他港口或者返回虚拟点
+// 在港口选择其他港口或者返回交货点
 int FindBestBerthOrGoFromBerth(int boat_index)
 {
-//     int best_berth_or_go = -2;
-//     int best_berth = -2;
-//     double max_value = 0;
-//     double berth_value = 0;
-//     // 先判断运走的价值（直接去虚拟点）?
-//     double go_value = (double)Boats[boat_index].goods_value / DeliveryToBerthTime[Boats[boat_index].pos];
-//     if (go_value > max_value /*&& Boats[boat_index].goods_num >= 0.7 * BoatCapacity*/)
-//     {
-//         max_value = go_value;
-//         best_berth_or_go = -1;
-//     }
-
-//     for (int i = 0; i < BerthNum; i++)
-//     { // 对于每一个港口
-//         if (i == Boats[boat_index].pos)
-//         { // 船留当前在的港口，计算预估的增加的货物
-//             int to_load_num = BoatCapacity - Boats[boat_index].goods_num;
-//             double time_load = to_load_num / ((double)Berths[i].total_goods_num / Frame);
-//             double stay_value = (Boats[boat_index].goods_value + to_load_num * 100) / (time_load + DeliveryToBerthTime[i]);
-//             if (stay_value > max_value)
-//             {
-//                 max_value = stay_value;
-//                 best_berth_or_go = i;
-//             }
-//             if (stay_value > berth_value)
-//             {
-//                 berth_value = stay_value;
-//                 best_berth = i;
-//             }
-//         }
-//         if (Berths[i].boat_num == 0)
-//         { // 只考虑没有船在或者要去的港口
-//             int to_time = BERTH_TRAN_LEN;
-//             if (to_time + DeliveryToBerthTime[i] < MAX_FRAME - Frame)
-//             { // 确保其过去之后可以返回虚拟点
-//                 // 估算过去之后货物增加的数量
-//                 double add_goods_num = (double)Berths[i].total_goods_num / (double)Frame * (double)to_time;
-//                 double berth_all_value = 0;
-
-//                 // 模拟该船装货物
-//                 int time_first = 0;
-//                 double time_second = 0;
-//                 int rest_load_time = MAX_FRAME - Frame - to_time - DeliveryToBerthTime[i]; // 最多能给你多少时间装货
-//                 bool time_out = false;                                                    // 是否超过了能装货的最短时间
-//                 int loaded_goods_num = 0;                                                 // 已经装了的货数量
-
-//                 queue<int> tmp = Berths[i].goods_queue;
-//                 while (!tmp.empty())
-//                 { // 先装已有的货，并且更新已经用了的时间
-//                     if (time_first >= rest_load_time)
-//                     { // 超时了，就记录一下，并且不装了
-//                         time_out = true;
-//                         break;
-//                     }
-//                     loaded_goods_num++; // 装一个货
-//                     time_first = (loaded_goods_num + Berths[i].loading_speed - 1) / Berths[i].loading_speed;
-//                     berth_all_value += AllGoods[tmp.front()].val;
-//                     tmp.pop();
-//                     if (loaded_goods_num >= BoatCapacity - Boats[boat_index].goods_num)
-//                     { // 已经装满了，就不装了
-//                         break;
-//                     }
-//                 }
-
-//                 if (loaded_goods_num < BoatCapacity - Boats[boat_index].goods_num && !time_out)
-//                 { // 没有装满并且还有时间装（那就装预计增加的，装多少取决于剩余时间内能装的，多少容量以及还有多少货，三者中的最小值）
-//                     double load_num_again = min(rest_load_time * Berths[i].loading_speed, BoatCapacity - Boats[boat_index].goods_num - loaded_goods_num);
-//                     load_num_again = min(load_num_again, add_goods_num);
-//                     // 这些货的价值和时间
-//                     time_second += (load_num_again / Berths[i].loading_speed);
-//                     berth_all_value += (load_num_again * 100.0);
-//                 }
-
-//                 // 计算性价比
-//                 berth_all_value /= (to_time + DeliveryToBerthTime[i] + time_first + time_second);
-//                 if (berth_all_value > max_value)
-//                 {
-//                     max_value = berth_all_value;
-//                     best_berth_or_go = i;
-//                 }
-//                 if (berth_all_value > berth_value)
-//                 {
-//                     berth_value = berth_all_value;
-//                     best_berth = i;
-//                 }
-//             }
-//         }
-//     }
-//     return DeliveryToBerthTime[Boats[boat_index].pos] * 3 < MAX_FRAME - Frame ? best_berth_or_go : best_berth;
 }
 
 // 船的调度
 void BoatDispatch()
 {
-    // for (int i = 0; i < BoatNum; i++)
-    // { // 对于每艘船进行调度
-    //     if (Boats[i].status == 0)
-    //     { // 船在移动中，则不管
-    //         continue;
-    //     }
-    //     else if (Boats[i].status == 1)
-    //     { // 船在港口或者虚拟点
-    //         if (Boats[i].pos == -1)
-    //         {
-    //             // 卸货完成，计算总获得的金钱
-    //             OurMoney += Boats[i].goods_value;
-
-    //             // 船在虚拟点，直接卸货完成，决策好的港口
-    //             // 卸货
-    //             Boats[i].goods_num = 0;
-    //             Boats[i].goods_value = 0;
-    //             // 找港口
-    //             int best_berth = FindBestBerthFromVirtual(i);
-    //             if (best_berth != -1)
-    //             {
-    //                 Boats[i].real_dest = best_berth;
-    //                 printf("ship %d %d\n", i, VirtualToBerthTransit[best_berth]);
-    //                 Berths[best_berth].boat_num++;
-    //             }
-    //         }
-    //         else
-    //         { // 船在港口
-    //             if (DeliveryToBerthTime[Boats[i].pos] >= MAX_FRAME - Frame)
-    //             {
-    //                 BoatToVirtual(i);
-
-    //                 // 如果在最后关头出发去了，那么出发并且解除该港口的标记
-    //                 Berths[Boats[i].pos].focus = 0;
-
-    //                 continue;
-    //             }
-    //             if (Boats[i].pos != Boats[i].real_dest)
-    //             { // 如果船在中转站(不在真正的目的地就一定中转站)，就直接去真正的目的地
-    //                 if (Boats[i].real_dest == -1)
-    //                 { // 如果真正的目的地是虚拟点，则go
-    //                     printf("go %d\n", i);
-    //                 }
-    //                 else if (Boats[i].real_dest >= 0)
-    //                 { // 如果真正的目的地是其他港口，则ship
-    //                     printf("ship %d %d\n", i, Boats[i].real_dest);
-    //                 }
-    //                 continue;
-    //             }
-    //             // 剩下的情况是在真正的目的地港口并且可以正常装货
-    //             if (Boats[i].goods_num >= BoatCapacity)
-    //             { // 如果船装满了，一定要出发去虚拟点
-    //                 BoatToVirtual(i);
-
-    //                 // 如果在最后关头装满了货，那么出发并且解除该港口的标记
-    //                 if (BERTH_TRAN_LEN + DeliveryToBerthTime[Boats[i].pos] >= MAX_FRAME - Frame)
-    //                 {
-    //                     Berths[Boats[i].pos].focus = 0;
-    //                 }
-
-    //                 continue;
-    //             }
-    //             else if (Berths[Boats[i].pos].goods_queue.size() == 0)
-    //             { // 港口没货物了（没有满速率装货也没关系，这一帧有一个货也是值的）
-    //                 int best_berth_or_go = FindBestBerthOrGoFromBerth(i);
-    //                 if (best_berth_or_go == -1)
-    //                 {
-    //                     BoatToVirtual(i);
-    //                 }
-    //                 else if (best_berth_or_go >= 0 && best_berth_or_go != Boats[i].pos)
-    //                 {
-    //                     Berths[Boats[i].pos].boat_num--;
-    //                     Berths[best_berth_or_go].boat_num++;
-    //                     Boats[i].real_dest = best_berth_or_go;
-    //                     printf("ship %d %d\n", i, best_berth_or_go);
-
-    //                     // 如果在最后关头进行最后一次调度到其他港口的操作，那么给那个港口进行标记
-    //                     if (2 * BERTH_TRAN_LEN + DeliveryToBerthTime[best_berth_or_go] >= MAX_FRAME - Frame)
-    //                     {
-    //                         Berths[best_berth_or_go].focus = 1;
-    //                     }
-    //                 }
-    //                 else // 剩下的正常装货
-    //                 {
-    //                     // 如果在最后关头选择继续留在该港口，那么给这个港口进行标记
-    //                     if (BERTH_TRAN_LEN + DeliveryToBerthTime[best_berth_or_go] >= MAX_FRAME - Frame)
-    //                     {
-    //                         Berths[best_berth_or_go].focus = 1;
-    //                     }
-    //                 }
-    //             }
-    //             else // 剩下的正常装货
-    //             {
-    //             }
-    //         }
-    //     }
-    //     else if (Boats[i].status == 2)
-    //     { // 船在等待
-    //         if (Boats[i].pos != Boats[i].real_dest)
-    //         { // 如果船在中转站(不在真正的目的地就一定中转站)，就直接去真正的目的地
-    //             if (Boats[i].real_dest == -1)
-    //             { // 如果真正的目的地是虚拟点，则go
-    //                 printf("go %d\n", i);
-    //             }
-    //             else if (Boats[i].real_dest >= 0)
-    //             { // 如果真正的目的地是其他港口，则ship
-    //                 printf("ship %d %d\n", i, Boats[i].real_dest);
-    //             }
-    //             continue;
-    //         }
-    //         else
-    //         { // 基本不会出现，因为我只去没船在的以及没船要去的（以防万一，再找个港口）
-    //           //
-    //         }
-    //     }
-    // }
 }
 
 // 装载货物
 void LoadGoods()
 {
-    // for (int i = 0; i < BoatNum; i++)
-    // {
-    //     if (Boats[i].status == 1 && Boats[i].pos != -1 && Boats[i].real_dest == Boats[i].pos) // 船只在装货
-    //     {
-    //         Boats[i].load_goods();
-    //     }
-    // }
 }
 
 // 购买机器人

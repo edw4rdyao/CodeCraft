@@ -1,3 +1,12 @@
 cd .\judge
-.\PreliminaryJudge.exe -m .\maps\map1.txt ..\build\main.exe -f 0 -s 0 -d output.txt -l NONE
-.\PreliminaryJudge.exe -m .\maps\map2.txt ..\build\main.exe -f 0 -s 0 -d output.txt -l NONE
+
+@REM set /a seed=%RANDOM%
+@REM set /a seed=21507
+set seed=0
+set time=0
+
+.\SemiFinalJudge.exe -m .\maps\map1.txt ..\build\main.exe -f %time% -s %seed% -l NONE
+
+.\SemiFinalJudge.exe -m .\maps\map2.txt ..\build\main.exe -f %time% -s %seed% -l NONE
+
+.\SemiFinalJudge.exe -m .\maps\map3.txt ..\build\main.exe -f %time% -s %seed% -l NONE
