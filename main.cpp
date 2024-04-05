@@ -31,19 +31,20 @@ unsigned int BerthNum = 0;
 const int MAX_BOAT_NUM = 100;
 unsigned int BoatNum = 0;
 
-const int MAX_DELIVERY_NUM = 100;
+const int MAX_DELIVERY_NUM = 10;
 unsigned int DeliveryNum = 0;
 
-const int MAX_ROBOT_BUYING_NUM = 100;
+const int MAX_ROBOT_BUYING_NUM = 10;
 unsigned int RobotBuyingNum = 0;
 
-const int MAX_BOAT_BUYING_NUM = 100;
+const int MAX_BOAT_BUYING_NUM = 10;
 unsigned int BoatBuyingNum = 0;
 
 const int N = 200;
 const int MAX_GOODS_NUM = 150010;
 const int MAX_LENGTH = 40000;
 
+// 可以修改的参数 每个机器人BFS找的最多路径与长度 离货物距离的比重
 const int MAX_ROAD_NUM = 10;
 const int MAX_ROAD_LEN = 350;
 const double TO_GOODS_WHIGHT = 3.0;
@@ -83,7 +84,7 @@ const int ROT_DIR[2][4] = {{3, 2, 0, 1},
 // 船：0顺时针 1逆时针 转之后核心点移动到的位置 2号位置 ：核心点变到4号位置
 const int ROT_POS[2] = {2, 4};
 
-int OurMoney = 0;               // 自己算出来的金钱
+int OurMoney = 25000;           // 自己算出来的金钱
 int RobotMoney = 0;             // 机器人拿的的钱
 int Money, BoatCapacity, Frame; // 金钱，船的容量，当前帧数
 unsigned int World[N][N];       // 地图
@@ -140,9 +141,9 @@ struct Berth
     int x, y;               // 泊位的坐标
     int transport_time;     // 货物运输时间
     int loading_speed;      // 货物装卸速度
-    int boat_num;           // 泊位上的船（正要去这里装货或者正在这里装货）的数量
+    int boat_id;            // 要去或者已经在泊位上的船（-1为没有）
     queue<int> goods_queue; // 泊位上的货物队列
-    int total_goods_num;    // 从第一帧开始，该港口堆积的货物数量（用于估计港口的货物增长速率）
+    int total_goods_num;    // 从第1帧开始，该港口堆积的货物数量（用于估计港口的货物增长速率）
     int focus;              // 最后的标记——耶稣(0:无标记；1：有标记)
 
     Berth() {}
@@ -151,7 +152,7 @@ struct Berth
         this->x = x;
         this->y = y;
         this->loading_speed = loading_speed;
-        this->boat_num = 0;
+        this->boat_id = -1;
         this->total_goods_num = 0;
         this->focus = 0;
     }
@@ -164,8 +165,9 @@ struct Boat
     int status;    // 船的状态（0：正常行驶，1：恢复状态，2：装载状态）
     int goods_num; // 船上货物的数量
 
-    int goods_value; // 船上已经装了的货物价值
-    int dest;        // 船的目的地
+    int goods_value;   // 船上已经装了的货物价值
+    int dest_delivery; // 目的交货点
+    int dest_berth;    // 目的港口
 
     Boat() {}
     Boat(int x, int y, int dir, int status, int goods_num)
@@ -177,7 +179,8 @@ struct Boat
         this->goods_num = 0;
 
         this->goods_value = 0;
-        this->dest = 0;
+        this->dest_delivery = -1;
+        this->dest_berth = -1;
     }
 } Boats[MAX_BOAT_NUM];
 
@@ -560,6 +563,19 @@ int ManhattanDistance(int x1, int y1, int x2, int y2)
     return abs(x2 - x1) + abs(y2 - y1);
 }
 
+// 计算一个位置状态到目的地的H值
+double GetHValue(int x, int y, int dir, int dx, int dy)
+{
+    double h_value = 0;
+    // for (int i = 0; i < 6; i++)
+    // { // 对于船的6个位置，离终点的曼哈顿距离加起来
+    //     h_value += ManhattanDistance(x + DX_BOAT[dir][i], y + DY_BOAT[dir][i], dx, dy);
+    // }
+    // h_value /= 6;
+    h_value += ManhattanDistance(x + DX_BOAT[dir][0], y + DY_BOAT[dir][0], dx, dy);
+    return h_value;
+}
+
 // 判断船的当前状态每个位置是否合法以及是否在主航道上(0表示不合法，1表示合法，2表示合法并且有部分在主航道上)
 int JudgeBoatState(int x, int y, int dir)
 {
@@ -590,12 +606,12 @@ struct BoatStateNode
     int dir;        // 状态的方向
     int action;     // 该状态的上一部动作 -1不动 0顺时针转 1逆时针转 2前进
     int g_value;    // 已经花费代价 g值
-    int h_value;    // 启发代价 h值
+    double h_value; // 启发代价 h值
     int list_state; // 该节点的状态（0不存在 1在开放列表中 2在关闭列表中）
 
     shared_ptr<BoatStateNode> pre_state; // 上一步状态
 
-    int f_value() const
+    double f_value() const
     { // 计算f值
         return this->g_value + this->h_value;
     }
@@ -655,20 +671,22 @@ void PercolateUp(vector<shared_ptr<BoatStateNode>> &heap, shared_ptr<BoatStateNo
 int PositionToPositionAStar(int sx, int sy, int dx, int dy)
 {
     // 首先初始化船起点的状态（核心点在起点，找一个方向合法的状态），如果没有合法的状态则返回-1
-    shared_ptr<BoatStateNode> start_state_node = make_shared<BoatStateNode>(
-        sx, sy, -1, -1, 0, ManhattanDistance(sx, sy, dx, dy), 1, nullptr);
+    int sdir = -1;
     for (int i = 0; i < 4; i++)
     {
         if (JudgeBoatState(sx, sy, i))
         {
-            start_state_node->dir = i;
+            sdir = i;
             break;
         }
     }
-    if (start_state_node->dir == -1)
+    if (sdir == -1)
     {
         return -1;
     }
+    shared_ptr<BoatStateNode> start_state_node = make_shared<BoatStateNode>(
+        sx, sy, sdir, -1, 0, GetHValue(sx, sy, sdir, dx, dy), 1, nullptr);
+
     // 开始A*找最短时间
     vector<shared_ptr<BoatStateNode>> openlist_heap;             // 开放列表，小根堆
     vector<vector<vector<shared_ptr<BoatStateNode>>>> all_nodes( // 哈希表，用来存所有的节点
@@ -688,7 +706,7 @@ int PositionToPositionAStar(int sx, int sy, int dx, int dy)
         openlist_heap.pop_back();
         // 将该节点加入到关闭列表（实际上是修改其状态）
         all_nodes[cur->x][cur->y][cur->dir]->list_state = 2;
-        // 判断是不是终点（不管方向，只要船核心点到了终点就算到了）
+        // 判断是不是终点（不管方向，只要船核心点到了终点就算到了然后返回花费的时间）
         if (cur->x == dx && cur->y == dy)
         {
             return cur->f_value();
@@ -717,12 +735,13 @@ int PositionToPositionAStar(int sx, int sy, int dx, int dy)
                 continue;
             }
             else
-            {                                                               // 该位置合法，开始判断该状态节点
-                int new_g_value = cur->g_value + (boat_state == 1 ? 1 : 2); // 如果下个位置有部分在主航道上，则2帧移动一步
+            {   // 该位置合法，开始判断该状态节点
+                // 如果下个位置有部分在主航道上，则2帧移动一步
+                int new_g_value = cur->g_value + (boat_state == 1 ? 1 : 2);
                 if (all_nodes[nx][ny][ndir] == nullptr)
                 { // 之前没找过，则计算F值，G值，加入到开放列表并且调整小根堆(更新到节点哈希表)
                     shared_ptr<BoatStateNode> new_state_node = make_shared<BoatStateNode>(
-                        nx, ny, ndir, move, new_g_value, ManhattanDistance(nx, ny, dx, dy), 1, cur);
+                        nx, ny, ndir, move, new_g_value, GetHValue(nx, ny, ndir, dx, dy), 1, cur);
                     all_nodes[nx][ny][ndir] = new_state_node;
                     openlist_heap.push_back(new_state_node);
                     push_heap(openlist_heap.begin(), openlist_heap.end(), CompareBoatStateNode());
@@ -763,7 +782,15 @@ void InitDeliveryToBerth()
 // 记录船舶购买点到泊位的最短时间
 void InitBuyingToBerth()
 {
-    //
+    // 初始化交货点到泊位之间的最短时间 -1为不可达
+    memset(BuyingToBerthTime, -1, sizeof(BuyingToBerthTime));
+    for (int bbi = 0; bbi < BoatBuyingNum; bbi++)
+    { // 对每一个轮船购买点
+        for (int bi = 0; bi < BerthNum; bi++)
+        { // 对每一个泊位，A星计算时间
+            BuyingToBerthTime[bbi][bi] = PositionToPositionAStar(BoatBuyings[bbi].x, BoatBuyings[bbi].y, Berths[bi].x, Berths[bi].y);
+        }
+    }
 }
 
 // 初始化函数
@@ -818,6 +845,7 @@ void Input()
     }
     // 同步船的状态和位置
     int boat_num;
+    scanf("%d", &boat_num);
     for (int i = 0; i < boat_num; i++)
     {
         int id, goods_num, x, y, dir, status;
@@ -1600,6 +1628,12 @@ void BuyRobots()
 // 购买船舶
 void BuyBoats()
 {
+    if (Frame == 1)
+    { // 初始购买（买几艘船测试寻路用）
+        for (int bbi = 0; bbi < BoatBuyingNum; bbi++)
+        { // 对于每个购买点有钱就购买船
+        }
+    }
 }
 
 // 输出实际金钱与我们自己算的金钱
@@ -1624,7 +1658,7 @@ void PrintBerthGoodsInfo(ofstream &out_file)
             berth_goods_value[i] += AllGoods[goods_index].val;
             berth_goods_num[i]++;
         }
-        out_file << "Berth " << i << " has " << left << setw(3) << berth_goods_num[i] << " goods, value is " << setw(5) << berth_goods_value[i] << ", focus is " << Berths[i].focus << endl;
+        out_file << "Berth " << i << " " << left << setw(3) << berth_goods_num[i] << " goods, value is " << setw(5) << berth_goods_value[i] << ", focus is " << Berths[i].focus << endl;
     }
 }
 
@@ -1634,8 +1668,12 @@ void PrintBoatInfo(ofstream &out_file)
     out_file << "Boat Capacity: " << BoatCapacity << endl;
     for (int i = 0; i < BoatNum; i++)
     {
-        out_file << "Boat " << i << " status " << Boats[i].status << ", is at (" << setw(3) << Boats[i].x << "," << setw(3) << Boats[i].y << Boats[i].y << "dir " << Boats[i].dir << ", dest "
-                 << setw(2) << Boats[i].dest << ", goods num " << setw(3) << Boats[i].goods_num << endl;
+        out_file << "Boat " << i << " status " << Boats[i].status
+                 << ", at (" << setw(3) << Boats[i].x << "," << setw(3) << Boats[i].y << ") "
+                 << "dir " << Boats[i].dir << ", dest berth "
+                 << setw(2) << Boats[i].dest_berth << ", dest delivery "
+                 << setw(2) << Boats[i].dest_delivery << ", goods num "
+                 << setw(3) << Boats[i].goods_num << endl;
     }
 }
 
@@ -1646,13 +1684,29 @@ void PrintRobotsMoney(ofstream &out_file)
     out_file << "Robot Money: " << RobotMoney << endl;
 }
 
-// 输出所有的虚拟点到港口时间
-void PrintVirtualToBerthTime(ofstream &out_file)
+// 输出每个交货点到每个港口时间
+void PrintDeliveryToBerthTime(ofstream &out_file)
 {
-    out_file << "------------------------Virtual To Berth Time-------------------------" << endl;
-    for (int i = 0; i < BerthNum; i++)
+    out_file << "-----------------------Delivery To Berth Time-------------------------" << endl;
+    for (int di = 0; di < DeliveryNum; di++)
     {
-        out_file << "Virtual " << i << " to Berth Time: " << left << setw(6) << DeliveryToBerthTime[i] << endl;
+        for (int bi = 0; bi < BerthNum; bi++)
+        {
+            out_file << "Delivery " << di << " to Berth" << bi << " Time: " << left << setw(6) << DeliveryToBerthTime[di][bi] << endl;
+        }
+    }
+}
+
+// 输出船舶购买点到每个港口的时间
+void PrintBuyingToBerthTime(ofstream &out_file)
+{
+    out_file << "------------------------Buying To Berth Time--------------------------" << endl;
+    for (int bbi = 0; bbi < BoatBuyingNum; bbi++)
+    {
+        for (int bi = 0; bi < BerthNum; bi++)
+        {
+            out_file << "Buying " << bbi << " to Berth" << bi << " Time: " << left << setw(6) << BuyingToBerthTime[bbi][bi] << endl;
+        }
     }
 }
 
@@ -1661,7 +1715,8 @@ void Print(ofstream &out_file, int interval)
 {
     if (Frame == 0)
     {
-        PrintVirtualToBerthTime(out_file);
+        PrintDeliveryToBerthTime(out_file);
+        PrintBuyingToBerthTime(out_file);
     }
 
     if (Frame % interval != 0)
