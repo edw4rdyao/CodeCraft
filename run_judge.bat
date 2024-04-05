@@ -5,8 +5,8 @@ cd .\judge
 set seed=0
 set time=0
 
-.\SemiFinalJudge.exe -m .\maps\map1.txt ..\build\main.exe -f %time% -s %seed% -l NONE
+.\SemiFinalJudge.exe -m .\maps\map1.txt ..\build\main.exe -f %time% -s %seed%
 
-.\SemiFinalJudge.exe -m .\maps\map2.txt ..\build\main.exe -f %time% -s %seed% -l NONE
+.\SemiFinalJudge.exe -m .\maps\map2.txt ..\build\main.exe -f %time% -s %seed%
 
-.\SemiFinalJudge.exe -m .\maps\map3.txt ..\build\main.exe -f %time% -s %seed% -l NONE
+.\SemiFinalJudge.exe -m .\maps\map3.txt ..\build\main.exe -f %time% -s %seed%

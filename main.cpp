@@ -16,7 +16,7 @@
 #include <mutex>
 #endif
 
-// #define DEBUG
+#define DEBUG
 
 using namespace std;
 
@@ -52,35 +52,36 @@ const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
 const int REV_DIR[4] = {1, 0, 3, 2}; // 上下左右的反方向（用于BFS记录路径）：下上右左
 
-// 4 2 0 ->
-// 5 3 1
+// 0 1 2 ->
+// 3 4 5
 
-//    1 3 5
-// <- 0 2 4
+//    5 4 3
+// <- 2 1 0
 
-// ↑ 0 1
-//   2 3
-//   4 5
+// ↑ 2 5
+//   1 4
+//   0 3
 
-//   5 4
-//   3 2
-//   1 0 ↓
-// 船体位置标号，核心点为4
+//   3 0
+//   4 1
+//   5 2 ↓
+// 船体位置标号，核心点为0
 // 使用下面的数组可以从核心点开始遍历0, 1, 2, 3, 4, 5号位置
-const int DX_BOAT[4][6] = {{0, 1, 0, 1, 0, 1},     // 右
-                           {0, -1, 0, -1, -1},     // 左
-                           {-2, -2, -1, -1, 0, 0}, // 上
-                           {2, 2, 1, 1, 0, 0}};    // 下
+const int DX_BOAT[4][6] = {{0, 0, 0, 1, 1, 1},     // 右
+                           {0, 0, 0, -1, -1, -1},  // 左
+                           {0, -1, -2, 0, -1, -2}, // 上
+                           {0, 1, 2, 0, 1, 2}};    // 下
 
-const int DY_BOAT[4][6] = {{2, 2, 1, 1, 0, 0},     // 右
-                           {-2, -2, -1, -1, 0, 0}, // 左
-                           {0, 1, 0, 1, 0, 1},     // 上
-                           {0, -1, 0, -1, 0, -1}}; // 下
-// 顺时针转：核心点变到0号位置
-// 逆时针转：核心点变到3号位置
-// 船：0右 1左 2上 3下，顺逆时针对应的方向
-const int CLOCKWISE[4] = {3, 2, 0, 1};
-const int ANTI_CLOCKWISE[4] = {2, 3, 1, 0};
+const int DY_BOAT[4][6] = {{0, 1, 2, 0, 1, 2},     // 右
+                           {0, -1, -2, 0, -1, -2}, // 左
+                           {0, 0, 0, 1, 1, 1},     // 上
+                           {0, 0, 0, -1, -1, -1}}; // 下
+
+// 船：0右 1左 2上 3下，顺逆时针后各个方向对应的方向
+const int ROT_DIR[2][4] = {{3, 2, 0, 1},
+                           {2, 3, 1, 0}};
+// 船：0顺时针 1逆时针 转之后核心点移动到的位置 2号位置 ：核心点变到4号位置
+const int ROT_POS[2] = {2, 4};
 
 int OurMoney = 0;               // 自己算出来的金钱
 int RobotMoney = 0;             // 机器人拿的的钱
@@ -212,33 +213,6 @@ struct Delivery
         this->y = y;
     }
 } Deliveries[MAX_DELIVERY_NUM];
-
-struct Road
-{
-    int robot_index;    // 路径对应的机器人id
-    int goods_index;    // 路径对应的物品id
-    int goods_distance; // 离物品的距离
-    int berth_index;    // 最近港口id
-    int next_dir;       // 机器人下一步方向
-    double value;       // 性价比
-
-    struct Comparator
-    { // 内部类作为比较器
-        bool operator()(const Road &a, const Road &b) const
-        {
-            return a.value < b.value;
-        }
-    };
-    Road(int robot_index, int goods_index, int goods_distance, int berth_index, int next_dir, double value)
-    {
-        this->robot_index = robot_index;
-        this->goods_index = goods_index;
-        this->goods_distance = goods_distance;
-        this->berth_index = berth_index;
-        this->next_dir = next_dir;
-        this->value = value;
-    }
-};
 
 // 海洋部分 10000000
 // 主航道   11000000
@@ -580,10 +554,210 @@ void InitToBerthBFS()
     }
 }
 
+// 两个位置之间的曼哈顿距离，用于估算启发代价（后续可换成BFS出的海上最短路）
+int ManhattanDistance(int x1, int y1, int x2, int y2)
+{
+    return abs(x2 - x1) + abs(y2 - y1);
+}
+
+// 判断船的当前状态每个位置是否合法以及是否在主航道上(0表示不合法，1表示合法，2表示合法并且有部分在主航道上)
+int JudgeBoatState(int x, int y, int dir)
+{
+    bool is_on_main = false;
+    for (int i = 0; i < 6; i++)
+    { // 对0-5号位置检查
+        int nx = x + DX_BOAT[dir][i];
+        int ny = y + DY_BOAT[dir][i];
+        if (IsOceanValid(nx, ny))
+        {
+            if (IsOnMainChannel(nx, ny))
+            {
+                is_on_main = true;
+            }
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    return is_on_main ? 2 : 1;
+}
+
+struct BoatStateNode
+{
+    int x;          // 状态位置的x坐标
+    int y;          // 状态位置的y坐标
+    int dir;        // 状态的方向
+    int action;     // 该状态的上一部动作 -1不动 0顺时针转 1逆时针转 2前进
+    int g_value;    // 已经花费代价 g值
+    int h_value;    // 启发代价 h值
+    int list_state; // 该节点的状态（0不存在 1在开放列表中 2在关闭列表中）
+
+    shared_ptr<BoatStateNode> pre_state; // 上一步状态
+
+    int f_value() const
+    { // 计算f值
+        return this->g_value + this->h_value;
+    }
+
+    bool operator<(const BoatStateNode &o) const
+    {
+        return this->f_value() < o.f_value();
+    }
+
+    BoatStateNode(int x, int y, int dir, int action, int g_value, int h_value,
+                  int list_state, shared_ptr<BoatStateNode> pre_state)
+        : x(x), y(y), dir(dir), action(action), g_value(g_value), h_value(h_value),
+          list_state(list_state), pre_state(pre_state) {}
+};
+
+struct CompareBoatStateNode
+{ // 自定义比较器
+    bool operator()(const shared_ptr<BoatStateNode> &a, const shared_ptr<BoatStateNode> &b) const
+    {
+        return a->f_value() > b->f_value();
+    }
+};
+
+// 二叉小根堆上滤
+void PercolateUp(vector<shared_ptr<BoatStateNode>> &heap, shared_ptr<BoatStateNode> state_node)
+{
+    // 先找到这个更新节点的下标
+    size_t idx = 0;
+    for (; idx++; idx < heap.size())
+    {
+        if (heap[idx] == state_node)
+        {
+            break;
+        }
+    }
+    if (idx == heap.size())
+    {
+        assert(false);
+    }
+    // 执行二叉树上滤
+    while (idx > 0)
+    {
+        size_t parent = (idx - 1) / 2;
+        if (heap[idx]->f_value() < heap[parent]->f_value())
+        {
+            swap(heap[idx], heap[parent]);
+            idx = parent;
+        }
+        else
+        {
+            return;
+        }
+    }
+}
+
+// 返回一个位置到另一个位置最短时间，-1表示不可达
+int PositionToPositionAStar(int sx, int sy, int dx, int dy)
+{
+    // 首先初始化船起点的状态（核心点在起点，找一个方向合法的状态），如果没有合法的状态则返回-1
+    shared_ptr<BoatStateNode> start_state_node = make_shared<BoatStateNode>(
+        sx, sy, -1, -1, 0, ManhattanDistance(sx, sy, dx, dy), 1, nullptr);
+    for (int i = 0; i < 4; i++)
+    {
+        if (JudgeBoatState(sx, sy, i))
+        {
+            start_state_node->dir = i;
+            break;
+        }
+    }
+    if (start_state_node->dir == -1)
+    {
+        return -1;
+    }
+    // 开始A*找最短时间
+    vector<shared_ptr<BoatStateNode>> openlist_heap;             // 开放列表，小根堆
+    vector<vector<vector<shared_ptr<BoatStateNode>>>> all_nodes( // 哈希表，用来存所有的节点
+        N, vector<vector<shared_ptr<BoatStateNode>>>(
+               N, vector<shared_ptr<BoatStateNode>>(
+                      4, nullptr)));
+
+    all_nodes[sx][sy][start_state_node->dir] = start_state_node; // 加入哈希表
+    openlist_heap.push_back(start_state_node);                   // 一个元素直接加入开放列表，不需要调整堆
+    start_state_node->list_state = 1;                            // 更新节点状态
+
+    while (!openlist_heap.empty())
+    {
+        // 从开放列表中取出f值最小的状态节点
+        shared_ptr<BoatStateNode> cur = openlist_heap.front();
+        pop_heap(openlist_heap.begin(), openlist_heap.end(), CompareBoatStateNode());
+        openlist_heap.pop_back();
+        // 将该节点加入到关闭列表（实际上是修改其状态）
+        all_nodes[cur->x][cur->y][cur->dir]->list_state = 2;
+        // 判断是不是终点（不管方向，只要船核心点到了终点就算到了）
+        if (cur->x == dx && cur->y == dy)
+        {
+            return cur->f_value();
+        }
+        // 下一步动作之后的船状态(3种动作 0顺时针转 1逆时针转 2正方向前进)
+        for (int move = 0; move < 3; move++)
+        {
+            // 获取下一步的位置状态是否是合法的
+            int nx, ny, ndir;
+            if (move == 0 || move == 1)
+            { // 顺时针转或者逆时针转，方向变化ROT_DIR ，核心点也变化ROT_POS
+                nx = cur->x + DX_BOAT[cur->dir][ROT_POS[move]];
+                ny = cur->y + DY_BOAT[cur->dir][ROT_POS[move]];
+                ndir = ROT_DIR[move][cur->dir];
+            }
+            else
+            { // 正方向前进一步，方向不变，核心点变化为1号位置
+                nx = cur->x + DX_BOAT[cur->dir][1];
+                ny = cur->y + DY_BOAT[cur->dir][1];
+                ndir = cur->dir;
+            }
+            // 看该位置是否合法，以及是否有某部分是主航道
+            int boat_state = JudgeBoatState(nx, ny, ndir);
+            if (boat_state == 0)
+            { // 该位置状态不合法
+                continue;
+            }
+            else
+            {                                                               // 该位置合法，开始判断该状态节点
+                int new_g_value = cur->g_value + (boat_state == 1 ? 1 : 2); // 如果下个位置有部分在主航道上，则2帧移动一步
+                if (all_nodes[nx][ny][ndir] == nullptr)
+                { // 之前没找过，则计算F值，G值，加入到开放列表并且调整小根堆(更新到节点哈希表)
+                    shared_ptr<BoatStateNode> new_state_node = make_shared<BoatStateNode>(
+                        nx, ny, ndir, move, new_g_value, ManhattanDistance(nx, ny, dx, dy), 1, cur);
+                    all_nodes[nx][ny][ndir] = new_state_node;
+                    openlist_heap.push_back(new_state_node);
+                    push_heap(openlist_heap.begin(), openlist_heap.end(), CompareBoatStateNode());
+                }
+                else if (all_nodes[nx][ny][ndir]->list_state == 1)
+                { // 节点在Open列表中，如果G值更小，则更新G值，并且重新调整小根堆
+                    if (new_g_value < all_nodes[nx][ny][ndir]->g_value)
+                    {
+                        all_nodes[nx][ny][ndir]->g_value = new_g_value;
+                        all_nodes[nx][ny][ndir]->pre_state = cur;
+                        // 调整小根堆
+                        PercolateUp(openlist_heap, all_nodes[nx][ny][ndir]);
+                    }
+                }
+                else if (all_nodes[nx][ny][ndir]->list_state == 2)
+                { // 之前找过并且在关闭列表中，则什么都不干
+                }
+            }
+        }
+    }
+    return -1;
+}
+
 // 记录交货点到泊位之间的最短时间
 void InitDeliveryToBerth()
 {
-    //
+    // 初始化交货点到泊位之间的最短时间 -1为不可达
+    memset(DeliveryToBerthTime, -1, sizeof(DeliveryToBerthTime));
+    for (int di = 0; di < DeliveryNum; di++)
+    { // 对每一个交货点
+        for (int bi = 0; bi < BerthNum; bi++)
+        { // 对每一个泊位,A星计算时间
+            DeliveryToBerthTime[di][bi] = PositionToPositionAStar(Deliveries[di].x, Deliveries[di].y, Berths[bi].x, Berths[bi].y);
+        }
+    }
 }
 
 // 记录船舶购买点到泊位的最短时间
@@ -707,6 +881,33 @@ bool GetGoodsRobotsCompair(int ri, int rj)
         return false;
     }
 }
+
+struct Road
+{
+    int robot_index;    // 路径对应的机器人id
+    int goods_index;    // 路径对应的物品id
+    int goods_distance; // 离物品的距离
+    int berth_index;    // 最近港口id
+    int next_dir;       // 机器人下一步方向
+    double value;       // 性价比
+
+    struct Comparator
+    { // 内部类作为比较器
+        bool operator()(const Road &a, const Road &b) const
+        {
+            return a.value < b.value;
+        }
+    };
+    Road(int robot_index, int goods_index, int goods_distance, int berth_index, int next_dir, double value)
+    {
+        this->robot_index = robot_index;
+        this->goods_index = goods_index;
+        this->goods_distance = goods_distance;
+        this->berth_index = berth_index;
+        this->next_dir = next_dir;
+        this->value = value;
+    }
+};
 
 // 机器人多线程BFS
 void RobotBFSToGoods(int ri, priority_queue<Road, vector<Road>, Road::Comparator> &roads_pq, mutex &roads_pq_mutex)
