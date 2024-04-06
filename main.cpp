@@ -48,6 +48,7 @@ const int MAX_LENGTH = 40000;
 const int MAX_ROAD_NUM = 10;
 const int MAX_ROAD_LEN = 350;
 const double TO_GOODS_WHIGHT = 3.0;
+const double H_VALUE_WEIGHT = 1.5;
 
 const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
@@ -567,12 +568,59 @@ int ManhattanDistance(int x1, int y1, int x2, int y2)
 double GetHValue(int x, int y, int dir, int dx, int dy)
 {
     double h_value = 0;
-    // for (int i = 0; i < 6; i++)
-    // { // 对于船的6个位置，离终点的曼哈顿距离加起来
-    //     h_value += ManhattanDistance(x + DX_BOAT[dir][i], y + DY_BOAT[dir][i], dx, dy);
-    // }
-    // h_value /= 6;
-    h_value += ManhattanDistance(x + DX_BOAT[dir][0], y + DY_BOAT[dir][0], dx, dy);
+    // 距离的估算价值（后续改成BFS得到的距离）
+    for (int i = 0; i < 6; i++)
+    { // 对于船的6个位置
+        h_value += ManhattanDistance(x + DX_BOAT[dir][i], y + DY_BOAT[dir][i], dx, dy);
+    }
+    h_value /= 6;
+    // 只对于船的核心点
+    // h_value += ManhattanDistance(x + DX_BOAT[dir][0], y + DY_BOAT[dir][0], dx, dy);
+    // 转向的估算价值
+    if (dir == 0)
+    { // 向右
+        if (dy > y && dx != x)
+        {
+            h_value += 1;
+        }
+        else if (dy <= y)
+        {
+            h_value += 2;
+        }
+    }
+    else if (dir == 1)
+    { // 向左
+        if (dy < y && dx != x)
+        {
+            h_value += 1;
+        }
+        else if (dy >= y)
+        {
+            h_value += 2;
+        }
+    }
+    else if (dir == 2)
+    { // 向上
+        if (dx < x && dy != y)
+        {
+            h_value += 1;
+        }
+        else if (dx >= x)
+        {
+            h_value += 2;
+        }
+    }
+    else
+    { // 向下
+        if (dx > x && dy != y)
+        {
+            h_value += 1;
+        }
+        else if (dx <= x)
+        {
+            h_value += 2;
+        }
+    }
     return h_value;
 }
 
@@ -612,8 +660,8 @@ struct BoatStateNode
     shared_ptr<BoatStateNode> pre_state; // 上一步状态
 
     double f_value() const
-    { // 计算f值
-        return this->g_value + this->h_value;
+    { // 计算f值，通过调整h值权重优化性能与最优解的平衡
+        return this->g_value + H_VALUE_WEIGHT * this->h_value;
     }
 
     bool operator<(const BoatStateNode &o) const
@@ -640,7 +688,7 @@ void PercolateUp(vector<shared_ptr<BoatStateNode>> &heap, shared_ptr<BoatStateNo
 {
     // 先找到这个更新节点的下标
     size_t idx = 0;
-    for (; idx++; idx < heap.size())
+    for (; idx < heap.size(); idx++)
     {
         if (heap[idx] == state_node)
         {
@@ -651,7 +699,7 @@ void PercolateUp(vector<shared_ptr<BoatStateNode>> &heap, shared_ptr<BoatStateNo
     {
         assert(false);
     }
-    // 执行二叉树上滤
+    // 执行二叉小根堆上滤
     while (idx > 0)
     {
         size_t parent = (idx - 1) / 2;
@@ -667,9 +715,12 @@ void PercolateUp(vector<shared_ptr<BoatStateNode>> &heap, shared_ptr<BoatStateNo
     }
 }
 
+vector<int> AStarSearchNodeNum; // 每次Astar搜索的节点数
+
 // 返回一个位置到另一个位置最短时间，-1表示不可达
 int PositionToPositionAStar(int sx, int sy, int dx, int dy)
 {
+    int search_node_num = 0;
     // 首先初始化船起点的状态（核心点在起点，找一个方向合法的状态），如果没有合法的状态则返回-1
     int sdir = -1;
     for (int i = 0; i < 4; i++)
@@ -682,6 +733,7 @@ int PositionToPositionAStar(int sx, int sy, int dx, int dy)
     }
     if (sdir == -1)
     {
+        AStarSearchNodeNum.push_back(search_node_num);
         return -1;
     }
     shared_ptr<BoatStateNode> start_state_node = make_shared<BoatStateNode>(
@@ -704,11 +756,13 @@ int PositionToPositionAStar(int sx, int sy, int dx, int dy)
         shared_ptr<BoatStateNode> cur = openlist_heap.front();
         pop_heap(openlist_heap.begin(), openlist_heap.end(), CompareBoatStateNode());
         openlist_heap.pop_back();
+        search_node_num++;
         // 将该节点加入到关闭列表（实际上是修改其状态）
         all_nodes[cur->x][cur->y][cur->dir]->list_state = 2;
         // 判断是不是终点（不管方向，只要船核心点到了终点就算到了然后返回花费的时间）
         if (cur->x == dx && cur->y == dy)
         {
+            AStarSearchNodeNum.push_back(search_node_num);
             return cur->f_value();
         }
         // 下一步动作之后的船状态(3种动作 0顺时针转 1逆时针转 2正方向前进)
@@ -735,7 +789,7 @@ int PositionToPositionAStar(int sx, int sy, int dx, int dy)
                 continue;
             }
             else
-            {   // 该位置合法，开始判断该状态节点
+            { // 该位置合法，开始判断该状态节点
                 // 如果下个位置有部分在主航道上，则2帧移动一步
                 int new_g_value = cur->g_value + (boat_state == 1 ? 1 : 2);
                 if (all_nodes[nx][ny][ndir] == nullptr)
@@ -762,6 +816,7 @@ int PositionToPositionAStar(int sx, int sy, int dx, int dy)
             }
         }
     }
+    AStarSearchNodeNum.push_back(search_node_num);
     return -1;
 }
 
@@ -1692,7 +1747,8 @@ void PrintDeliveryToBerthTime(ofstream &out_file)
     {
         for (int bi = 0; bi < BerthNum; bi++)
         {
-            out_file << "Delivery " << di << " to Berth" << bi << " Time: " << left << setw(6) << DeliveryToBerthTime[di][bi] << endl;
+            out_file << "Delivery " << di << " to Berth " << bi << " Time: " << left << setw(6) << DeliveryToBerthTime[di][bi];
+            out_file << " Search Node:" << AStarSearchNodeNum[di * DeliveryNum + bi] << endl;
         }
     }
 }
@@ -1705,7 +1761,8 @@ void PrintBuyingToBerthTime(ofstream &out_file)
     {
         for (int bi = 0; bi < BerthNum; bi++)
         {
-            out_file << "Buying " << bbi << " to Berth" << bi << " Time: " << left << setw(6) << BuyingToBerthTime[bbi][bi] << endl;
+            out_file << "Buying   " << bbi << " to Berth " << bi << " Time: " << left << setw(6) << BuyingToBerthTime[bbi][bi];
+            out_file << " Search Node:" << AStarSearchNodeNum[DeliveryNum * BerthNum + bbi * BoatBuyingNum + bi] << endl;
         }
     }
 }
