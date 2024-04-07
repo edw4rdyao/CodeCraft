@@ -45,8 +45,8 @@ cmake-build-debug
 .DS_Store
 
 # Source
-MacOSReleasev1.1/
-MacOSReleasev1.2/
+MacOSReleasev1.1
+MacOSReleasev1.2
 mac/
 
 # 脚本

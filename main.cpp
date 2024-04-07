@@ -49,6 +49,9 @@ const int MAX_ROAD_NUM = 10;
 const int MAX_ROAD_LEN = 350;
 const double TO_GOODS_WHIGHT = 3.0;
 const double H_VALUE_WEIGHT = 2.0;
+const int MAX_BUY_BOAT_NUM = 10;
+const int BOAT_BUY_MONEY_THRESHOLD = 10000;
+const int BERTH_GOODS_TOO_MUCH = 50;
 
 const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
@@ -96,6 +99,7 @@ int BerthPathLength[MAX_BERTH_NUM][N][N];   // 机器人泊位到每个点的最
 
 int DeliveryToBerthTime[MAX_DELIVERY_NUM][MAX_BERTH_NUM];  // 交货点到港口的最短时间
 int BuyingToBerthTime[MAX_BOAT_BUYING_NUM][MAX_BERTH_NUM]; // 船舶购买点到港口的最短时间
+int BerthNearestBuying[MAX_BERTH_NUM];                      // 港口最近的购买点
 
 // 估算的到交货点或者港口的最短时间（用于启发函数）
 int ToBerthEstimateTime[MAX_BERTH_NUM][N][N];
@@ -226,6 +230,10 @@ struct BoatBuying
     {
         this->x = x;
         this->y = y;
+    }
+    int Free()
+    {
+        return 1;
     }
 } BoatBuyings[MAX_BOAT_BUYING_NUM];
 
@@ -1236,6 +1244,8 @@ void InitBuyingToBerth()
 {
     // 初始化交货点到泊位之间的最短时间 -1为不可达
     memset(BuyingToBerthTime, -1, sizeof(BuyingToBerthTime));
+    // 初始化离每个港口最近的购船点，购船点不可达为-1
+    memset(BerthNearestBuying, -1, sizeof(BerthNearestBuying));
     for (int bbi = 0; bbi < BoatBuyingNum; bbi++)
     { // 对每一个轮船购买点
         for (int bi = 0; bi < BerthNum; bi++)
@@ -1243,10 +1253,16 @@ void InitBuyingToBerth()
             if (ToBerthEstimateTime[bi][BoatBuyings[bbi].x][BoatBuyings[bbi].y] == -1)
             { // 如果不可达
                 BuyingToBerthTime[bbi][bi] = -1;
+                BerthNearestBuying[bi] = -1;
             }
             else
             {
                 BuyingToBerthTime[bbi][bi] = PositionToPositionAStar(BoatBuyings[bbi].x, BoatBuyings[bbi].y, 1, bi);
+                // 如果之前没有找到或者找到的时间更短
+                if (BerthNearestBuying[bi] == -1 || BuyingToBerthTime[bbi][bi] < BuyingToBerthTime[BerthNearestBuying[bi]][bi])
+                {
+                    BerthNearestBuying[bi] = bbi;
+                }
             }
         }
     }
@@ -2393,27 +2409,62 @@ void BuyRobots()
     }
 }
 
+// 买一艘船，并指派其去的地方
+void BuyBoat(int boat_buying_index, int berth_id)
+{
+    printf("lboat %d %d\n", BoatBuyings[boat_buying_index].x, BoatBuyings[boat_buying_index].y);  // 打印指令
+    Boats[BoatNum++] = Boat(BoatBuyings[boat_buying_index].x, BoatBuyings[boat_buying_index].y, 0, 0, 0);  // 初始化船的信息，方向要朝you
+    BoatBuyings[boat_buying_index].pre_buy = Frame;  // 更新购买时间
+}
 // 购买船舶
 void BuyBoats()
 {
     if (Frame == 1)
-    { // 初始购买（买几艘船测试寻路用）
-        for (int bbi = 0; bbi < BoatBuyingNum; bbi++)
-        { // 对于每个购买点有钱就购买船
-            printf("lboat %d %d\n", BoatBuyings[bbi].x, BoatBuyings[bbi].y);
-            Boats[BoatNum] = Boat(BoatBuyings[bbi].x, BoatBuyings[bbi].y, 0, 0, 0);
+    {
+        int init_boat_buying_index = 0;  // 初始船购买点位置
+        int init_berth_index = 0; // 初始港口位置
+        BuyBoat(init_boat_buying_index, init_berth_index);  // 购买船舶
+    }
+    else  // 其余时刻船的购买策略
+    {
+        if (Money < BOAT_BUY_MONEY_THRESHOLD || BoatNum >= MAX_BUY_BOAT_NUM)  // 金钱不够起限额或者超过最大购船数量，不买船
+        {
+            return;
+        }
+        else
+        {
             for (int bi = 0; bi < BerthNum; bi++)
             {
-                if (Berths[bi].boat_id == -1)
+                if (Berths[bi].boat_id == -1 && Berths[bi].goods_queue.size() > BERTH_GOODS_TOO_MUCH)
                 {
-                    Boats[BoatNum].dest_berth = bi;
-                    Berths[bi].boat_id = BoatNum;
-                    break;
+                    if (BoatBuyings[BerthNearestBuying[bi]].Free())  // 购买点是否为空
+                    {
+                        BuyBoat(BerthNearestBuying[bi], bi);  // 购买船舶
+                        break;
+                    }
                 }
             }
-            BoatNum++;
         }
     }
+
+//    if (Frame == 1)
+//    { // 初始购买（买几艘船测试寻路用）
+//        for (int bbi = 0; bbi < BoatBuyingNum; bbi++)
+//        { // 对于每个购买点有钱就购买船
+//            printf("lboat %d %d\n", BoatBuyings[bbi].x, BoatBuyings[bbi].y);
+//            Boats[BoatNum] = Boat(BoatBuyings[bbi].x, BoatBuyings[bbi].y, 0, 0, 0);
+//            for (int bi = 0; bi < BerthNum; bi++)
+//            {
+//                if (Berths[bi].boat_id == -1)
+//                {
+//                    Boats[BoatNum].dest_berth = bi;
+//                    Berths[bi].boat_id = BoatNum;
+//                    break;
+//                }
+//            }
+//            BoatNum++;
+//        }
+//    }
 }
 
 // 输出实际金钱与我们自己算的金钱
