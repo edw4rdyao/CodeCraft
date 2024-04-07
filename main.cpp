@@ -100,6 +100,8 @@ int BuyingToBerthTime[MAX_BOAT_BUYING_NUM][MAX_BERTH_NUM]; // 船舶购买点到
 // 估算的到交货点或者港口的最短时间（用于启发函数）
 int ToBerthEstimateTime[MAX_BERTH_NUM][N][N];
 int ToDeliveryEstimateTime[MAX_DELIVERY_NUM][N][N];
+// int ToBerthEstimateTimeForBoat[MAX_BERTH_NUM][N][N][4];
+// int ToDeliveryEstimateTimeForBoat[MAX_DELIVERY_NUM][N][N][4];
 
 struct Goods
 {
@@ -297,6 +299,29 @@ bool IsOnMainChannel(int x, int y)
 int IsOnGoods(int x, int y)
 {
     return WorldGoods[x][y];
+}
+
+// 判断船的当前状态每个位置是否合法以及是否在主航道上(0表示不合法，1表示合法，2表示合法并且有部分在主航道上)
+int JudgeBoatState(int x, int y, int dir)
+{
+    bool is_on_main = false;
+    for (int i = 0; i < 6; i++)
+    { // 对0-5号位置检查
+        int nx = x + DX_BOAT[dir][i];
+        int ny = y + DY_BOAT[dir][i];
+        if (IsOceanValid(nx, ny))
+        {
+            if (IsOnMainChannel(nx, ny))
+            {
+                is_on_main = true;
+            }
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    return is_on_main ? 2 : 1;
 }
 
 // 判断位置(x, y)与所有港口的可达性
@@ -564,6 +589,165 @@ void InitToBerthBFS()
     }
 }
 
+// struct BoatState
+// {
+//     int x;
+//     int y;
+//     int dir;
+//     BoatState(int x, int y, int dir) : x(x), y(y), dir(dir) {}
+// };
+
+// struct BoatStateCompare
+// {
+//     bool operator()(const pair<int, BoatState> &a, const pair<int, BoatState> &b) const
+//     {
+//         return a.first > b.first;
+//     }
+// };
+
+// void InitToDeliveryEstimateTimeForBoat()
+// {
+//     // 初始化所有交货点到每个点的最短时间，均为-1
+//     memset(ToDeliveryEstimateTimeForBoat, -1, sizeof(ToDeliveryEstimateTimeForBoat));
+//     for (int d = 0; d < DeliveryNum; d++)
+//     { // 对每个交货点，核心点在此的船
+//         int sx = Deliveries[d].x;
+//         int sy = Deliveries[d].y;
+//         // 找一个方向合法的状态，如果没有合法的状态则返回-1
+//         int sdir = -1;
+//         for (int i = 0; i < 4; i++)
+//         {
+//             if (JudgeBoatState(sx, sy, i))
+//             {
+//                 sdir = i;
+//                 break;
+//             }
+//         }
+//         if (sdir == -1)
+//         {
+//             continue; // 这个交货点不合法
+//         }
+//         // 将本位置加入优先队列
+//         priority_queue<pair<int, BoatState>, vector<pair<int, BoatState>>, BoatStateCompare> pq;
+//         ToDeliveryEstimateTimeForBoat[d][sx][sy][sdir] = 0;
+//         pq.push({0, BoatState(sx, sy, sdir)});
+//         while (!pq.empty())
+//         {
+
+//             auto cur_state = pq.top();
+//             pq.pop();
+//             int cur_time = cur_state.first;
+//             int x = cur_state.second.x;
+//             int y = cur_state.second.y;
+//             int dir = cur_state.second.dir;
+//             if (ToDeliveryEstimateTimeForBoat[d][x][y][dir] != -1 && cur_time > ToDeliveryEstimateTimeForBoat[d][x][y][dir])
+//                 continue;
+
+//             for (int move = 0; move < 3; move++)
+//             { // 下一步动作(3种动作 0顺时针转 1逆时针转 2正方向前进)
+//                 int nx, ny, ndir;
+//                 if (move == 0 || move == 1)
+//                 { // 顺时针转或者逆时针转，方向变化ROT_DIR ，核心点也变化ROT_POS
+//                     nx = x + DX_BOAT[dir][ROT_POS[move]];
+//                     ny = y + DY_BOAT[dir][ROT_POS[move]];
+//                     ndir = ROT_DIR[move][dir];
+//                 }
+//                 else
+//                 { // 正方向前进一步，方向不变，核心点变化为1号位置
+//                     nx = x + DX_BOAT[dir][1];
+//                     ny = y + DY_BOAT[dir][1];
+//                     ndir = dir;
+//                 }
+//                 int boat_state = JudgeBoatState(nx, ny, ndir);
+//                 if (boat_state == 0)
+//                 { // 该位置状态不合法
+//                     continue;
+//                 }
+//                 else
+//                 {
+//                     int next_time = cur_time + (boat_state == 1 ? 1 : 2);
+//                     if (ToDeliveryEstimateTimeForBoat[d][nx][ny][ndir] < 0 || next_time < ToDeliveryEstimateTimeForBoat[d][nx][ny][ndir])
+//                     {
+//                         ToDeliveryEstimateTimeForBoat[d][nx][ny][ndir] = next_time;
+//                         pq.push({next_time, BoatState(nx, ny, ndir)});
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }
+
+// void InitToBerthEstimateTimeForBoat()
+// {
+//     // 初始化所有交货点到每个点的最短时间，均为-1
+//     memset(ToBerthEstimateTimeForBoat, -1, sizeof(ToBerthEstimateTimeForBoat));
+//     for (int b = 0; b < BerthNum; b++)
+//     { // 对每个交货点，核心点在此的船
+//         int sx = Berths[b].x;
+//         int sy = Berths[b].y;
+//         // 找一个方向合法的状态，如果没有合法的状态则返回-1
+//         int sdir = -1;
+//         for (int i = 0; i < 4; i++)
+//         {
+//             if (JudgeBoatState(sx, sy, i))
+//             {
+//                 sdir = i;
+//                 break;
+//             }
+//         }
+//         if (sdir == -1)
+//         {
+//             continue; // 这个港口不合法
+//         }
+//         // 将本位置加入优先队列
+//         priority_queue<pair<int, BoatState>, vector<pair<int, BoatState>>, BoatStateCompare> pq;
+//         ToBerthEstimateTimeForBoat[b][sx][sy][sdir] = 0;
+//         pq.push({0, BoatState(sx, sy, sdir)});
+//         while (!pq.empty())
+//         {
+//             auto cur_state = pq.top();
+//             pq.pop();
+//             int cur_time = cur_state.first;
+//             int x = cur_state.second.x;
+//             int y = cur_state.second.y;
+//             int dir = cur_state.second.dir;
+//             if (ToBerthEstimateTimeForBoat[b][x][y][dir] != -1 && cur_time > ToBerthEstimateTimeForBoat[b][x][y][dir])
+//                 continue;
+
+//             for (int move = 0; move < 3; move++)
+//             { // 下一步动作(3种动作 0顺时针转 1逆时针转 2正方向前进)
+//                 int nx, ny, ndir;
+//                 if (move == 0 || move == 1)
+//                 { // 顺时针转或者逆时针转，方向变化ROT_DIR ，核心点也变化ROT_POS
+//                     nx = x + DX_BOAT[dir][ROT_POS[move]];
+//                     ny = y + DY_BOAT[dir][ROT_POS[move]];
+//                     ndir = ROT_DIR[move][dir];
+//                 }
+//                 else
+//                 { // 正方向前进一步，方向不变，核心点变化为1号位置
+//                     nx = x + DX_BOAT[dir][1];
+//                     ny = y + DY_BOAT[dir][1];
+//                     ndir = dir;
+//                 }
+//                 int boat_state = JudgeBoatState(nx, ny, ndir);
+//                 if (boat_state == 0)
+//                 { // 该位置状态不合法
+//                     continue;
+//                 }
+//                 else
+//                 {
+//                     int next_time = cur_time + (boat_state == 1 ? 1 : 2);
+//                     if (ToBerthEstimateTimeForBoat[b][nx][ny][dir] < 0 || next_time < ToBerthEstimateTimeForBoat[b][nx][ny][dir])
+//                     {
+//                         ToBerthEstimateTimeForBoat[b][nx][ny][dir] = next_time;
+//                         pq.push({next_time, BoatState(nx, ny, ndir)});
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }
+
 void InitToDeliveryEstimateTimeDijkstra()
 {
     // 初始化所有交货点到每个点的最短路径长度，均为-1
@@ -578,30 +762,28 @@ void InitToDeliveryEstimateTimeDijkstra()
         pq.push({0, {delivery_x, delivery_y}});
         while (!pq.empty())
         {
+            auto cur_pos = pq.top();
+            pq.pop();
+
+            int cur_dist = cur_pos.first;
+            int x = cur_pos.second.first;
+            int y = cur_pos.second.second;
+            if (ToDeliveryEstimateTime[d][x][y] != -1 && cur_dist > ToDeliveryEstimateTime[d][x][y])
+                continue;
+
+            for (int i = 0; i < 4; i++)
             {
-                auto cur_pos = pq.top();
-                pq.pop();
-
-                int cur_dist = cur_pos.first;
-                int x = cur_pos.second.first;
-                int y = cur_pos.second.second;
-                if (ToDeliveryEstimateTime[d][x][y] != -1 && cur_dist > ToDeliveryEstimateTime[d][x][y])
-                    continue;
-
-                for (int i = 0; i < 4; i++)
+                int dir = i;
+                int nx = x + DX[dir];
+                int ny = y + DY[dir];
+                if (IsOceanValid(nx, ny))
                 {
-                    int dir = i;
-                    int nx = x + DX[dir];
-                    int ny = y + DY[dir];
-                    if (IsOceanValid(nx, ny))
+                    int weight = IsOnMainChannel(nx, ny) ? 2 : 1; // 主航道上
+                    int next_dist = cur_dist + weight;
+                    if (ToDeliveryEstimateTime[d][nx][ny] < 0 || next_dist < ToDeliveryEstimateTime[d][nx][ny])
                     {
-                        int weight = IsOnMainChannel(nx, ny) ? 2 : 1; // 主航道上
-                        int next_dist = cur_dist + weight;
-                        if (ToDeliveryEstimateTime[d][nx][ny] < 0 || next_dist < ToDeliveryEstimateTime[d][nx][ny])
-                        {
-                            ToDeliveryEstimateTime[d][nx][ny] = next_dist;
-                            pq.push({next_dist, {nx, ny}});
-                        }
+                        ToDeliveryEstimateTime[d][nx][ny] = next_dist;
+                        pq.push({next_dist, {nx, ny}});
                     }
                 }
             }
@@ -623,30 +805,28 @@ void InitToBerthEstimateTimeDijkstra()
         pq.push({0, {berth_x, berth_y}});
         while (!pq.empty())
         {
+            auto cur_pos = pq.top();
+            pq.pop();
+
+            int cur_dist = cur_pos.first;
+            int x = cur_pos.second.first;
+            int y = cur_pos.second.second;
+            if (ToBerthEstimateTime[b][x][y] != -1 && cur_dist > ToBerthEstimateTime[b][x][y])
+                continue;
+
+            for (int i = 0; i < 4; i++)
             {
-                auto cur_pos = pq.top();
-                pq.pop();
-
-                int cur_dist = cur_pos.first;
-                int x = cur_pos.second.first;
-                int y = cur_pos.second.second;
-                if (ToBerthEstimateTime[b][x][y] != -1 && cur_dist > ToBerthEstimateTime[b][x][y])
-                    continue;
-
-                for (int i = 0; i < 4; i++)
+                int dir = i;
+                int nx = x + DX[dir];
+                int ny = y + DY[dir];
+                if (IsOceanValid(nx, ny))
                 {
-                    int dir = i;
-                    int nx = x + DX[dir];
-                    int ny = y + DY[dir];
-                    if (IsOceanValid(nx, ny))
+                    int weight = IsOnMainChannel(nx, ny) ? 2 : 1; // 主航道上
+                    int next_dist = cur_dist + weight;
+                    if (ToBerthEstimateTime[b][nx][ny] < 0 || next_dist < ToBerthEstimateTime[b][nx][ny])
                     {
-                        int weight = IsOnMainChannel(nx, ny) ? 2 : 1; // 主航道上
-                        int next_dist = cur_dist + weight;
-                        if (ToBerthEstimateTime[b][nx][ny] < 0 || next_dist < ToBerthEstimateTime[b][nx][ny])
-                        {
-                            ToBerthEstimateTime[b][nx][ny] = next_dist;
-                            pq.push({next_dist, {nx, ny}});
-                        }
+                        ToBerthEstimateTime[b][nx][ny] = next_dist;
+                        pq.push({next_dist, {nx, ny}});
                     }
                 }
             }
@@ -748,11 +928,11 @@ double GetHValue(int x, int y, int dir, int action, int d_type, int d_id)
     }
     h_value /= 6;
 
-    // 尽量不转弯
-    if (action == 0 || action == 1)
-    {
-        h_value += 1;
-    }
+    // 尽量不转弯（这样会错过最优路径）
+    // if (action == 0 || action == 1)
+    // {
+    //     h_value += 1;
+    // }
 
     // 只对于船的核心点
     // if (d_type)
@@ -810,29 +990,6 @@ double GetHValue(int x, int y, int dir, int action, int d_type, int d_id)
     //     }
     // }
     return h_value;
-}
-
-// 判断船的当前状态每个位置是否合法以及是否在主航道上(0表示不合法，1表示合法，2表示合法并且有部分在主航道上)
-int JudgeBoatState(int x, int y, int dir)
-{
-    bool is_on_main = false;
-    for (int i = 0; i < 6; i++)
-    { // 对0-5号位置检查
-        int nx = x + DX_BOAT[dir][i];
-        int ny = y + DY_BOAT[dir][i];
-        if (IsOceanValid(nx, ny))
-        {
-            if (IsOnMainChannel(nx, ny))
-            {
-                is_on_main = true;
-            }
-        }
-        else
-        {
-            return 0;
-        }
-    }
-    return is_on_main ? 2 : 1;
 }
 
 struct BoatStateNode
