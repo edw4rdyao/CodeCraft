@@ -2324,6 +2324,18 @@ void BuyRobots()
             int boat_index = 0;
             while (!best_buy.empty()){
                 BestBuy choose = best_buy.top();
+                if (Berths[choose.best_buy_berth].focus == 1){
+                    //若这个方案是同一港口，则舍弃
+                    best_buy.pop();
+                    continue;
+                }
+                //若这个方案是同一船只购买点，则舍弃
+                for (int i = 0; i < boat_index; i++){
+                    if (choose.best_buy_boat == InitBuyingToBuy[i]){
+                        best_buy.pop();
+                        continue;
+                    }
+                }
                 for (int i = 0; i < buy_robot_num; i++){
                     if (InitBuyRobotNum == 0){
                         break;
@@ -2346,6 +2358,18 @@ void BuyRobots()
             //对所有船
             for (int bi = 0; bi < InitBuyBoatNum; bi++){
                 BestBuy choose = best_buy.top();
+                if (Berths[choose.best_buy_berth].focus == 1){
+                    //若这个方案是同一港口，则舍弃
+                    best_buy.pop();
+                    continue;
+                }
+                //若这个方案是同一船只购买点，则舍弃
+                for (int i = 0; i < boat_index; i++){
+                    if (choose.best_buy_boat == InitBuyingToBuy[i]){
+                        best_buy.pop();
+                        continue;
+                    }
+                }
                 for (int i = 0; i < buy_robot_num; i++){
                     if (InitBuyRobotNum == 0){
                         break;
