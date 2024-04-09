@@ -166,18 +166,18 @@ struct Berth
 {
     int x, y;               // 泊位的坐标
     int transport_time;     // 货物运输时间
-    int loading_speed;      // 货物装卸速度
+    int velocity;           // 货物装卸速度
     int boat_id;            // 要去或者已经在泊位上的船（-1为没有）
     queue<int> goods_queue; // 泊位上的货物队列
     int total_goods_num;    // 从第1帧开始，该港口堆积的货物数量（用于估计港口的货物增长速率）
     int focus;              // 最后的标记——耶稣(0:无标记；1：有标记)
 
     Berth() {}
-    Berth(int x, int y, int loading_speed)
+    Berth(int x, int y, int velocity)
     {
         this->x = x;
         this->y = y;
-        this->loading_speed = loading_speed;
+        this->velocity = velocity;
         this->boat_id = -1;
         this->total_goods_num = 0;
         this->focus = 0;
@@ -232,8 +232,21 @@ struct BoatBuying
         this->x = x;
         this->y = y;
     }
-    int Free()
+    int IsFree()
     {
+        for (int b = 0; b < BoatNum; b++)  // 对于每艘船进行冲突检查
+        {
+            for (int i = 0; i < 6; i++)  // 对于船的每个点进行冲突检查
+            {
+                for (int j = 1; j < 6; j++)  // 对于购买点除去核心点的每个点进行冲突检查
+                {
+                    if (Boats[b].x + DX_BOAT[Boats[b].dir][i] == this->x + DX_BOAT[0][j] && \
+                        Boats[b].y + DY_BOAT[Boats[b].dir][i] == this->y + DY_BOAT[0][j]) {
+                        return 0;
+                    }
+                }
+            }
+        }
         return 1;
     }
 } BoatBuyings[MAX_BOAT_BUYING_NUM];
@@ -537,9 +550,9 @@ void InitWorldInfo()
     {
         int id;
         scanf("%d", &id);
-        int x, y, loading_speed;
-        scanf("%d%d%d", &x, &y, &loading_speed);
-        Berths[id] = Berth(x, y, loading_speed);
+        int x, y, velocity;
+        scanf("%d%d%d", &x, &y, &velocity);
+        Berths[id] = Berth(x, y, velocity);
     }
     // 通过泊位信息再次更新地图（将地图的港口对应的ID更新）
     for (int i = 0; i < BerthNum; i++)
@@ -1325,6 +1338,7 @@ void Input()
     // 同步船的状态和位置
     int boat_num;
     scanf("%d", &boat_num);
+    BoatNum = boat_num;
     for (int i = 0; i < boat_num; i++)
     {
         int id, goods_num, x, y, dir, status;
@@ -1478,7 +1492,7 @@ void RobotBFSToGoods(int ri, priority_queue<Road, vector<Road>, Road::Comparator
 }
 
 // 机器人调度
-void RobotDsipatchGreedy()
+void RobotDispatchGreedy()
 {
     vector<int> robots_match(RobotNum, 0); // 机器人是否匹配
     set<int> goods_match;                  // 被匹配的商品
@@ -1860,7 +1874,7 @@ void HedgeAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM])
 }
 
 // 抢位让位函数
-void RushPosisionAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM])
+void RushPositionAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM])
 {
     if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
     { // 若都有/都没有碰撞过
@@ -2020,12 +2034,12 @@ void AvoidCollision()
                                     }
                                     else
                                     { // k都不对冲，判断i,j抢位
-                                        RushPosisionAvoid(ri, rj, is_collision_robot);
+                                        RushPositionAvoid(ri, rj, is_collision_robot);
                                     }
                                 }
                                 else
                                 { // 没机器人，判断i，j抢位
-                                    RushPosisionAvoid(ri, rj, is_collision_robot);
+                                    RushPositionAvoid(ri, rj, is_collision_robot);
                                 }
                                 break;
                             }
@@ -2091,6 +2105,12 @@ int FindBestBerthFromDelivery(int boat_index)
 
 // 在港口选择其他港口或者返回交货点
 int FindBestBerthOrGoFromBerth(int boat_index)
+{
+    return -1;
+}
+
+// 在购买点选择最好的港口
+int FindBestBerthFromBuying(int boat_index)
 {
     return -1;
 }
@@ -2193,11 +2213,19 @@ void BoatDispatch()
         }
         else if (Boats[bi].status == 2)
         { // 装载状态进行讨论
-            Berths[Boats[bi].dest_berth].boat_id = -1; 
-            Boats[bi].pre_dest_berth = Boats[bi].dest_berth;
-            Boats[bi].dest_berth = -1;
-            Boats[bi].dest_delivery = 0;
+            if (Berths[Boats[bi].dest_berth].goods_queue.size() == 0)
+            { // 没有货物了，寻路
+                is_need_astar[bi] = true;
+            }
+            else
+            { // 还有货物，不用寻路
+                is_need_astar[bi] = false;
+            }
         }
+//            Berths[Boats[bi].dest_berth].boat_id = -1;
+//            Boats[bi].pre_dest_berth = Boats[bi].dest_berth;
+//            Boats[bi].dest_berth = -1;
+//            Boats[bi].dest_delivery = 0;
         else
         { // 行驶状态，寻路
             // 判断是不是到了目的地（到港口的话，进港装货，到交货点的话，卸货然后再确定目的港口再寻路）
@@ -2259,9 +2287,21 @@ void BoatDispatch()
     }
 }
 
-// 装载货物
+// 装载货物 (其实好像可以不用写，不对好像还是要写的......)
 void LoadGoods()
 {
+    for (int b = 0; b < BoatNum; b++)
+    {
+        if (Boats[b].status == 2)
+        {
+            int berth_index = Boats[b].dest_berth;
+            for (int i = 0; i < min((int)Berths[berth_index].goods_queue.size(), Berths[berth_index].velocity); i++)
+            {
+                Berths[berth_index].goods_queue.pop();
+            }
+
+        }
+    }
 }
 
 //比较最佳购买
@@ -2417,22 +2457,24 @@ void BuyRobots()
 }
 
 // 买一艘船，并指派其去的地方
-void BuyBoat(int boat_buying_index)
+void BuyBoat(int boat_buying_index, int berth_index)  // 好像只要买就行，反正是最后的操作，等之后就直接根据判题器给的来
 {
-    printf("lboat %d %d\n", BoatBuyings[boat_buying_index].x, BoatBuyings[boat_buying_index].y);  // 打印指令
-    Boats[BoatNum++] = Boat(BoatBuyings[boat_buying_index].x, BoatBuyings[boat_buying_index].y, 0, 0, 0);  // 初始化船的信息，方向要朝you
+    printf("lboat %d %d\n", BoatBuyings[boat_buying_index].x, BoatBuyings[boat_buying_index].y);  // 输出指令
+    Boats[BoatNum] = Boat(BoatBuyings[boat_buying_index].x, BoatBuyings[boat_buying_index].y, 0, 0, 0);  // 船的初始化
+    Boats[BoatNum].dest_berth = berth_index;  // 船的目的地
+    BoatNum++;
 }
 // 购买船舶
 void BuyBoats()
 {
     if (Frame == 1)
     {
-        for (int i = 0; i < MAX_BOAT_NUM; i++)
+        for (int i : InitBuyingToBuy)
         {
-            if (InitBuyingToBuy[i] == -1)
+            if (i == -1)
                 break;
             else
-                BuyBoat(InitBuyingToBuy[i]);  // 购买船舶
+                BuyBoat(i, InitBerthToGo[i]);  // 购买船舶
         }
     }
     else  // 其余时刻船的购买策略
@@ -2443,13 +2485,13 @@ void BuyBoats()
         }
         else
         {
-            for (int bi = 0; bi < BerthNum; bi++)
+            for (int be = 0; be < BerthNum; be++)
             {
-                if (Berths[bi].boat_id == -1 && Berths[bi].goods_queue.size() > BERTH_GOODS_TOO_MUCH)
+                if (Berths[be].boat_id == -1 && Berths[be].goods_queue.size() > BERTH_GOODS_TOO_MUCH)
                 {
-                    if (BoatBuyings[BerthNearestBuying[bi]].Free())  // 购买点是否为空
+                    if (BoatBuyings[BerthNearestBuying[be]].IsFree())  // 购买点是否为空
                     {
-                        BuyBoat(BerthNearestBuying[bi]);  // 购买船舶
+                        BuyBoat(BerthNearestBuying[be], be);  // 购买船舶
                         break;
                     }
                 }
@@ -2484,7 +2526,7 @@ void PrintMoney(ofstream &out_file)
     out_file << "Our  money: " << OurMoney << endl;
 }
 
-// 输出每个港口的货物量，货物总价值以及是否聚焦
+// 输出每个港口的货物量，货物总价值以及是否聚焦，以及装载速度
 void PrintBerthGoodsInfo(ofstream &out_file)
 {
     int berth_goods_value[MAX_BERTH_NUM] = {0};
@@ -2501,14 +2543,13 @@ void PrintBerthGoodsInfo(ofstream &out_file)
         }
         out_file << "Berth " << i << " " << left << setw(3) << berth_goods_num[i] << " goods, value "
                  << setw(5) << berth_goods_value[i] << ", focus " << Berths[i].focus
-                 << " boat " << setw(3) << Berths[i].boat_id << endl;
+                 << " boat " << setw(3) << Berths[i].boat_id << " velocity " << setw(3) << Berths[i].velocity<< endl;
     }
 }
 
 // 输出每艘船的信息
 void PrintBoatInfo(ofstream &out_file)
 {
-    out_file << "Boat Capacity: " << BoatCapacity << endl;
     for (int i = 0; i < BoatNum; i++)
     {
         out_file << "Boat " << i << " status " << Boats[i].status
@@ -2547,6 +2588,13 @@ void PrintWorldInfo(ofstream &out_file)
     }
 }
 
+// 输出船的容量
+void PrintBoatCapacity(ofstream &out_file)
+{
+    out_file << "----------------------------------------Boat Capacity------------------------------------------" << endl;
+    out_file << "Boat Capacity: " << BoatCapacity << endl;
+}
+
 // 输出每个交货点到每个港口时间
 void PrintDeliveryToBerthTime(ofstream &out_file)
 {
@@ -2578,7 +2626,7 @@ void PrintBuyingToBerthTime(ofstream &out_file)
 // 输出初始购买信息
 void PrintInitBuy(ofstream &out_file)
 {
-    out_file << "----------------------------------------Init Buy Info------------------------------------------" << endl;
+    out_file << "----------------------------------------Init Buy Info-----------------------------------------" << endl;
     out_file << "Init Buy Robot Num: " << InitBuyRobotNum << endl;
     out_file << "Init Buy Boat Num: " << InitBuyBoatNum << endl;
     for (int i = 0; i < MAX_BOAT_NUM; i++)
@@ -2598,12 +2646,13 @@ void Print(ofstream &out_file, int interval)
         // PrintWorldInfo(out_file);
         PrintDeliveryToBerthTime(out_file);
         PrintBuyingToBerthTime(out_file);
+        PrintBoatCapacity(out_file);
     }
 
-    if (Frame == 2)  // 因为在所有操作最前面输出，所以要第二帧
+    if (Frame == 1)
         PrintInitBuy(out_file);
 
-    if (Frame % interval != 0)
+    if (!Frame || Frame % interval != 0)
     {
         return;
     }
@@ -2657,7 +2706,7 @@ int main()
 #endif
 
         Input();
-        RobotDsipatchGreedy();
+        RobotDispatchGreedy();
         AvoidCollision();
         PrintRobotsIns();
         BoatDispatch();
