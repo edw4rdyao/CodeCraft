@@ -51,8 +51,8 @@ const int MAX_ROAD_LEN = 350;
 const double TO_GOODS_WHIGHT = 3.0;
 const double H_VALUE_WEIGHT = 2.0;
 const int MAX_BUY_BOAT_NUM = 10;
-const int BOAT_BUY_MONEY_THRESHOLD = 10000;
-const int BERTH_GOODS_TOO_MUCH = 50;
+const int BOAT_BUY_MONEY_THRESHOLD = 8000;
+//const int BERTH_GOODS_TOO_MUCH = 50;
 
 const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
 const int DY[4] = {0, 0, -1, 1};     // 每个方向y轴的偏移
@@ -101,6 +101,7 @@ int BerthPathLength[MAX_BERTH_NUM][N][N];   // 机器人泊位到每个点的最
 int DeliveryToBerthTime[MAX_DELIVERY_NUM][MAX_BERTH_NUM];  // 交货点到港口的最短时间
 int BuyingToBerthTime[MAX_BOAT_BUYING_NUM][MAX_BERTH_NUM]; // 船舶购买点到港口的最短时间
 int BerthNearestBuying[MAX_BERTH_NUM];                      // 港口最近的购买点
+int BerthNearestDelivery[MAX_BERTH_NUM];                    // 港口最近的交货点
 
 // 估算的到交货点或者港口的最短时间（用于启发函数）
 int ToBerthEstimateTime[MAX_BERTH_NUM][N][N];
@@ -197,7 +198,7 @@ struct Boat
     int pre_dest_berth; //上一个目的港口
 
     Boat() {}
-    Boat(int x, int y, int dir, int status, int goods_num)
+    Boat(int x, int y, int dir, int status)
     {
         this->x = x;
         this->y = y;
@@ -1237,6 +1238,8 @@ void InitDeliveryToBerth()
 {
     // 初始化交货点到泊位之间的最短时间 -1为不可达
     memset(DeliveryToBerthTime, -1, sizeof(DeliveryToBerthTime));
+    // 初始化每个泊位的最近交货点
+    memset(BerthNearestDelivery, -1, sizeof(BerthNearestDelivery));
     for (int di = 0; di < DeliveryNum; di++)
     { // 对每一个交货点
         for (int bi = 0; bi < BerthNum; bi++)
@@ -1244,10 +1247,16 @@ void InitDeliveryToBerth()
             if (ToBerthEstimateTime[bi][Deliveries[di].x][Deliveries[di].y] == -1)
             { // 如果不可达
                 DeliveryToBerthTime[di][bi] = -1;
+                BerthNearestDelivery[bi] = -1;
             }
             else
             {
                 DeliveryToBerthTime[di][bi] = PositionToPositionAStar(Deliveries[di].x, Deliveries[di].y, 1, bi);
+                // 如果之前没有找到或者找到的时间更短
+                if (BerthNearestDelivery[bi] == -1 || DeliveryToBerthTime[di][bi] < DeliveryToBerthTime[BerthNearestDelivery[bi]][bi])
+                {
+                    BerthNearestDelivery[bi] = di;
+                }
             }
         }
     }
@@ -2259,7 +2268,7 @@ void BoatDispatch()
             //初始时等装满了再走
             if (Berths[Boats[bi].pre_dest_berth].focus == 1 and Boats[bi].goods_num < BoatCapacity and 15000-Frame > DeliveryToBerthTime[0][Boats[bi].pre_dest_berth]){
                 //有focus(初始或最后)、货没装满、剩余帧大于去0号交货点的时间（不是最后）（TODO:暂定）,则不寻路，等着
-                is_need_astar[bi] == false;
+                !is_need_astar[bi];
             }
 
             //若装好了货，则把港口的focus去了
@@ -2296,7 +2305,7 @@ void BoatDispatch()
     }
 }
 
-// 装载货物 (其实好像可以不用写，不对好像还是要写的......)
+// 装载货物
 void LoadGoods()
 {
     for (int b = 0; b < BoatNum; b++)
@@ -2306,6 +2315,8 @@ void LoadGoods()
             int berth_index = Boats[b].dest_berth;
             for (int i = 0; i < min((int)Berths[berth_index].goods_queue.size(), Berths[berth_index].velocity); i++)
             {
+                Boats[b].goods_num++;  // 这个加不加无所谓，后一帧输入会覆盖掉
+                Boats[b].goods_value += AllGoods[Berths[berth_index].goods_queue.front()].val;
                 Berths[berth_index].goods_queue.pop();
             }
 
@@ -2360,7 +2371,7 @@ void BuyRobots()
                             continue;
                         }
                         else{
-                            best_buy.push(BestBuy(BerthPathLength[bi][x][y] + BuyingToBerthTime[bbi][bi], rbi, bbi, bi));
+                            best_buy.emplace(BerthPathLength[bi][x][y] + BuyingToBerthTime[bbi][bi], rbi, bbi, bi);
                         }
                     }
                 }
@@ -2369,7 +2380,7 @@ void BuyRobots()
         // 根据船数目分配机器人
         if (best_buy.size() < InitBuyBoatNum){
             //若可达港口小于初始船只数
-            int buy_robot_num = InitBuyRobotNum / best_buy.size();
+            int buy_robot_num = InitBuyRobotNum / (int) best_buy.size();
             int boat_index = 0;
             while (!best_buy.empty()){
                 BestBuy choose = best_buy.top();
@@ -2465,67 +2476,70 @@ void BuyRobots()
     }
 }
 
+// 购买机器人（用最大数量以及船的数量来限制，能买就买）
+
 // 买一艘船，并指派其去的地方
-void BuyBoat(int boat_buying_index, int berth_index)  // 好像只要买就行，反正是最后的操作，等之后就直接根据判题器给的来
+void BuyBoat(int boat_buying_index, int berth_index)
 {
     printf("lboat %d %d\n", BoatBuyings[boat_buying_index].x, BoatBuyings[boat_buying_index].y);  // 输出指令
-    Boats[BoatNum] = Boat(BoatBuyings[boat_buying_index].x, BoatBuyings[boat_buying_index].y, 0, 0, 0);  // 船的初始化
+    Boats[BoatNum] = Boat(BoatBuyings[boat_buying_index].x, BoatBuyings[boat_buying_index].y, 0, 0);  // 船的初始化
     Boats[BoatNum].dest_berth = berth_index;  // 船的目的地
     BoatNum++;
 }
-// 购买船舶
-void BuyBoats()
+
+// 购买船舶 (用最大数量来限制，能买就买，买来去当时最多货的港口)
+int BuyBoats()
 {
+    int buy = 0;
     if (Frame == 1)
     {
         for (int i : InitBuyingToBuy)
         {
             if (i == -1)
                 break;
-            else
+            else {
                 BuyBoat(i, InitBerthToGo[i]);  // 购买船舶
+                buy = 1;
+            }
         }
     }
     else  // 其余时刻船的购买策略
     {
         if (Money < BOAT_BUY_MONEY_THRESHOLD || BoatNum >= MAX_BUY_BOAT_NUM)  // 金钱不够起限额或者超过最大购船数量，不买船
         {
-            return;
+            return buy;
         }
         else
         {
+            int max_goods_value_distance = 0;  // 最大货物价值距离
+            int berth_index_to_go = -1;        // 要去的港口
             for (int be = 0; be < BerthNum; be++)
             {
-                if (Berths[be].boat_id == -1 && Berths[be].goods_queue.size() > BERTH_GOODS_TOO_MUCH)
+                if (Berths[be].boat_id != -1 || !BoatBuyings[BerthNearestBuying[be]].IsFree())
+                {  // 忽略已有船的港口和已经忙碌的购买点附近的港口
+                    continue;
+                }
+                int total_goods_value = 0;
+                queue<int> tmp = Berths[be].goods_queue;
+                for (int j = 0; j < min((int)tmp.size(), BoatCapacity); j++)
                 {
-                    if (BoatBuyings[BerthNearestBuying[be]].IsFree())  // 购买点是否为空
-                    {
-                        BuyBoat(BerthNearestBuying[be], be);  // 购买船舶
-                        break;
-                    }
+                    total_goods_value += AllGoods[tmp.front()].val;
+                    tmp.pop();
+                }
+                int value_distance;
+                if ((value_distance = total_goods_value /                                                                                 \
+                    (DeliveryToBerthTime[BerthNearestDelivery[be]][be] + BuyingToBerthTime[BerthNearestBuying[be]][be])) \
+                    > max_goods_value_distance)
+                {
+                    max_goods_value_distance = total_goods_value;
+                    berth_index_to_go = be;
                 }
             }
+            BuyBoat(BerthNearestBuying[berth_index_to_go], berth_index_to_go);  // 购买船舶
+            buy = 1;
         }
     }
-
-//    if (Frame == 1)
-//    { // 初始购买（买几艘船测试寻路用）
-//        for (int bbi = 0; bbi < BoatBuyingNum; bbi++)
-//        { // 对于每个购买点有钱就购买船
-//            printf("lboat %d %d\n", BoatBuyings[bbi].x, BoatBuyings[bbi].y);
-//            Boats[BoatNum] = Boat(BoatBuyings[bbi].x, BoatBuyings[bbi].y, 0, 0, 0);
-//            for (int bi = 0; bi < BerthNum; bi++)
-//            {
-//                if (Berths[bi].boat_id == -1)
-//                {
-//                    Boats[BoatNum].dest_berth = bi;
-//                    Berths[bi].boat_id = BoatNum;
-//                    break;
-//                }
-//            }
-//            BoatNum++;
-//        }
-//    }
+    return buy;
 }
 
 // 输出实际金钱与我们自己算的金钱
