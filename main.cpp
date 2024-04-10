@@ -585,9 +585,9 @@ void InitWorldInfo()
     {
         int id;
         scanf("%d", &id);
-        int x, y, loading_speed;
-        scanf("%d%d%d", &x, &y, &loading_speed);
-        Berths[id] = Berth(x, y, loading_speed);
+        int x, y, velocity;
+        scanf("%d%d%d", &x, &y, &velocity);
+        Berths[id] = Berth(x, y, velocity);
     }
     // 通过泊位信息再次更新地图（将地图的港口对应的ID更新）
     for (int i = 0; i < BerthNum; i++)
@@ -1536,7 +1536,7 @@ void RobotBFSToGoods(int ri, priority_queue<Road, vector<Road>, Road::Comparator
 }
 
 // 机器人调度
-void RobotDsipatchGreedy()
+void RobotDispatchGreedy()
 {
     vector<int> robots_match(RobotNum, 0); // 机器人是否匹配
     set<int> goods_match;                  // 被匹配的商品
@@ -2951,7 +2951,7 @@ int main()
 #endif
 
         Input();
-        RobotDsipatchGreedy();
+        RobotDispatchGreedy();
         AvoidCollision();
         PrintRobotsIns();
         BoatDispatch();
