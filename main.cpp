@@ -121,12 +121,20 @@ int InitBuyBoatNum = (25000 - 2000 * InitBuyRobotNum) / 8000;
 int InitBerthToGo[MAX_BOAT_NUM];
 int InitBuyingToBuy[MAX_BOAT_NUM];
 
-// 预估每个机器人每帧拿多少价值，用于调参
+// 预估每个机器人、船每帧拿多少价值，用于调参
 double RobotEveryFrame = 2;
+double BoatEveryFrame = 3;
 // 港口上屯小于多少货再买机器人 或 有多少钱再买机器人 或 机器人数不能太多，用于调参
 int RobotBuyMoney = 10000;
 int RobotBuyGoods = 50;
 int RobotBuyNum = 15;
+
+// 港口上屯大于多少货再买船 或 有多少钱再买船 或 船数不能太多，用于调参
+int BoatBuyMoney = 8000;
+int BoatBuyGoods = 50;
+
+//买东西策略选择
+int BuyChoose = 2; //xmc:1; cxh:2;
 
 struct BoatRouteState
 {
@@ -2220,8 +2228,8 @@ void BoatDispatch()
         { // 装载状态进行讨论
             if (Boats[bi].goods_num >= BoatCapacity)
             { // 装满或者不够时间回交货点 就滚
-                Boats[bi].dest_berth = -1;
                 Berths[Boats[bi].dest_berth].boat_id = -1; // 清除港口目的地以及港口的船
+                Boats[bi].dest_berth = -1;
                 Boats[bi].dest_delivery = 0;               // 加入交货点目的地
                 Boats[bi].status = 0;                      // 清空状态避免后面装货
                 // 清空路径并且寻路（实际上靠泊的时候路径就一定清空了）
@@ -2408,9 +2416,10 @@ void BuyABoat(int boat_buying_index, int berth_index)
 {
     printf("lboat %d %d\n", BoatBuyings[boat_buying_index].x, BoatBuyings[boat_buying_index].y);     // 输出指令
     Boats[BoatNum] = Boat(BoatBuyings[boat_buying_index].x, BoatBuyings[boat_buying_index].y, 0, 0); // 船的初始化
-    Boats[BoatNum].dest_berth = berth_index;                                                         // 船的目的地
+    Boats[BoatNum].dest_berth = berth_index;
+    Berths[berth_index].boat_id = BoatNum;                                                         // 船的目的地
     BoatNum++;
-    OurMoney -= ROBOT_BUY_MONEY; // 花钱
+    OurMoney -= BOAT_BUY_MONEY; // 花钱
 }
 
 // 购买机器人,返回初始船只购买港口 (cxh)
@@ -2463,6 +2472,11 @@ void BuyRobotsCxh()
             while (!best_buy.empty())
             {
                 BestBuy choose = best_buy.top();
+                if (Berths[choose.best_buy_berth].focus == 1){
+                    //若这个方案是同一港口，则舍弃
+                    best_buy.pop();
+                    continue;
+                }
                 for (int i = 0; i < buy_robot_num; i++)
                 {
                     if (InitBuyRobotNum == 0)
@@ -2490,6 +2504,11 @@ void BuyRobotsCxh()
             for (int bi = 0; bi < InitBuyBoatNum; bi++)
             {
                 BestBuy choose = best_buy.top();
+                if (Berths[choose.best_buy_berth].focus == 1){
+                    //若这个方案是同一港口，则舍弃
+                    best_buy.pop();
+                    continue;
+                }
                 for (int i = 0; i < buy_robot_num; i++)
                 {
                     if (InitBuyRobotNum == 0)
@@ -2579,6 +2598,62 @@ void BuyRobotsCxh()
 // 购买船（cxh)
 void BuyBoatsCxh()
 {
+    if (Frame == 1)
+    {
+        for (int i : InitBuyingToBuy)
+        {
+            if (i == -1)
+                break;
+            else
+            {
+                BuyABoat(i, InitBerthToGo[i]); // 购买船舶
+            }
+        }
+    }
+    else // 其余时刻船的购买策略
+    {
+        // 后续购买
+        // 统计囤积货物量
+        int num_goods = 0;
+        for (int bi = 0; bi < BerthNum; bi++)
+        {
+            num_goods += Berths[bi].goods_queue.size();
+        }
+        if ((15000 - Frame) * BoatEveryFrame <= 8000 || Money <= BoatBuyMoney || num_goods >= BoatBuyGoods || BoatNum >= MAX_BUY_BOAT_NUM)
+        {
+            // 再买就不礼貌了 或 没钱了 或 囤货太少 或 船太多
+            return;
+        }
+        else
+        {
+            int max_goods_value_distance = -1; // 最大货物价值距离
+            int berth_index_to_go = -1;       // 要去的港口
+            for (int be = 0; be < BerthNum; be++)
+            {
+                if (Berths[be].boat_id != -1)
+                { // 忽略已有船的港口和已经忙碌的购买点附近的港口
+                    continue;
+                }
+                int total_goods_value = 0;
+                queue<int> tmp = Berths[be].goods_queue;
+                for (int j = 0; j < min((int)tmp.size(), BoatCapacity); j++)
+                {
+                    total_goods_value += AllGoods[tmp.front()].val;
+                    tmp.pop();
+                }
+                double value_distance = (double)total_goods_value / (double)(DeliveryToBerthTime[BerthNearestDelivery[be]][be] + BuyingToBerthTime[BerthNearestBuying[be]][be]);
+                if (value_distance > max_goods_value_distance)
+                {
+                    max_goods_value_distance = total_goods_value;
+                    berth_index_to_go = be;
+                }
+            }
+            if (berth_index_to_go < 0){
+                return;
+            }
+            BuyABoat(BerthNearestBuying[berth_index_to_go], berth_index_to_go); // 购买船舶
+        }
+    }
     return;
 }
 
@@ -2785,8 +2860,15 @@ int BuyBoatsXmc()
 // 购买函数
 void Buy()
 {
-    while (BuyRobotsXmc() || BuyBoatsXmc())
+    if (BuyChoose == 1){
+        while (BuyRobotsXmc() || BuyBoatsXmc())
         ;
+    }
+    else{
+        BuyRobotsCxh();
+        BuyBoatsCxh();
+    }
+
 }
 
 // 购买船舶
@@ -2841,7 +2923,7 @@ void PrintBerthGoodsInfo(ofstream &out_file)
             berth_goods_num[i]++;
         }
         out_file << "Berth " << i << " " << left << setw(3) << berth_goods_num[i] << " goods, value "
-                 << setw(5) << berth_goods_value[i] << ", focus " << Berths[i].focus
+                 << setw(5) << berth_goods_value[i] << ", focus " << Berths[i].focus 
                  << " boat " << setw(3) << Berths[i].boat_id << " velocity " << setw(3) << Berths[i].velocity << endl;
     }
 }
