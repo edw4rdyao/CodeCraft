@@ -908,80 +908,6 @@ void InitToBerthEstimateTimeDijkstra()
     }
 }
 
-void InitToBerthEstimateTimeBFS()
-{
-    // 初始化所有泊位到每个点的最短路径长度，均为-1（memset支持初始化-1）
-    memset(ToBerthEstimateTime, -1, sizeof(ToBerthEstimateTime));
-    // 对每个泊位开始做BFS
-    for (int b = 0; b < BerthNum; b++)
-    {
-        int berth_x = Berths[b].x;
-        int berth_y = Berths[b].y;
-        queue<pair<int, int>> q;
-        // 将本位置加入
-        q.push({berth_x, berth_y});
-        ToBerthEstimateTime[b][berth_x][berth_y] = 0;
-        while (!q.empty())
-        { // 从队列中取出一个点
-            pair<int, int> cur_pos = q.front();
-            q.pop();
-            for (int i = 0; i < 4; i++)
-            { // 遍历到下一个点
-                int dir = i;
-                int nx = cur_pos.first + DX[dir];
-                int ny = cur_pos.second + DY[dir];
-                if (IsOceanValid(nx, ny))
-                { // 判断该点是否为海洋
-                    int next_path_time = ToBerthEstimateTime[b][cur_pos.first][cur_pos.second] + 1;
-                    if (ToBerthEstimateTime[b][nx][ny] < 0)
-                    { // 这个点之前没有遍历过
-                        ToBerthEstimateTime[b][nx][ny] = next_path_time;
-                        // 将该点加入队列
-                        q.push({nx, ny});
-                    }
-                }
-            }
-        }
-    }
-}
-
-void InitToDeliveryEstimateTimeBFS()
-{
-    // 初始化所有交货点到每个点的最短路径长度，均为-1（memset支持初始化-1）
-    memset(ToDeliveryEstimateTime, -1, sizeof(ToDeliveryEstimateTime));
-    // 对每个交货点开始做BFS
-    for (int d = 0; d < DeliveryNum; d++)
-    {
-        int delivery_x = Deliveries[d].x;
-        int delivery_y = Deliveries[d].y;
-        queue<pair<int, int>> q;
-        // 将本位置加入
-        q.push({delivery_x, delivery_y});
-        ToDeliveryEstimateTime[d][delivery_x][delivery_x] = 0;
-        while (!q.empty())
-        { // 从队列中取出一个点
-            pair<int, int> cur_pos = q.front();
-            q.pop();
-            for (int i = 0; i < 4; i++)
-            { // 遍历到下一个点
-                int dir = i;
-                int nx = cur_pos.first + DX[dir];
-                int ny = cur_pos.second + DY[dir];
-                if (IsOceanValid(nx, ny))
-                { // 判断该点是否为海洋
-                    int next_path_time = ToDeliveryEstimateTime[d][cur_pos.first][cur_pos.second] + 1;
-                    if (ToDeliveryEstimateTime[d][nx][ny] < 0)
-                    { // 这个点之前没有遍历过
-                        ToDeliveryEstimateTime[d][nx][ny] = next_path_time;
-                        // 将该点加入队列
-                        q.push({nx, ny});
-                    }
-                }
-            }
-        }
-    }
-}
-
 // 计算一个位置状态到目的地的H值
 double GetHValue(int x, int y, int dir, int action, int d_type, int d_id)
 {
@@ -1010,51 +936,6 @@ double GetHValue(int x, int y, int dir, int action, int d_type, int d_id)
     //     h_value += 1;
     // }
 
-    // 转向的估算价值
-    // if (dir == 0)
-    // { // 向右
-    //     if (dy > y && dx != x)
-    //     {
-    //         h_value += 1;
-    //     }
-    //     else if (dy <= y)
-    //     {
-    //         h_value += 2;
-    //     }
-    // }
-    // else if (dir == 1)
-    // { // 向左
-    //     if (dy < y && dx != x)
-    //     {
-    //         h_value += 1;
-    //     }
-    //     else if (dy >= y)
-    //     {
-    //         h_value += 2;
-    //     }
-    // }
-    // else if (dir == 2)
-    // { // 向上
-    //     if (dx < x && dy != y)
-    //     {
-    //         h_value += 1;
-    //     }
-    //     else if (dx >= x)
-    //     {
-    //         h_value += 2;
-    //     }
-    // }
-    // else
-    // { // 向下
-    //     if (dx > x && dy != y)
-    //     {
-    //         h_value += 1;
-    //     }
-    //     else if (dx <= x)
-    //     {
-    //         h_value += 2;
-    //     }
-    // }
     return h_value;
 }
 
@@ -1200,20 +1081,23 @@ int PositionToPositionAStar(int sx, int sy, int d_type, int d_id)
         search_node_num++;
         // 将该节点加入到关闭列表（实际上是修改其状态）
         all_nodes[cur->x][cur->y][cur->dir]->list_state = 2;
-        // 判断是不是终点（不管方向，只要船核心点到了终点就算到了然后返回花费的时间）
+        // 判断是不是终点
         bool is_arrive = false;
-        if (d_type == 1)
-        { // 目的地是港口，只要核心点到靠泊区就好
-            is_arrive = (IsInBerthRange(cur->x, cur->y) == d_id);
+        int to_berth_time = 0;
+        if (d_type == 1 && IsInBerthRange(cur->x, cur->y) == d_id)
+        { // 到了港口的靠泊区
+            is_arrive = true;
+            // 大约为目前位置到港口位置曼哈顿距离的两倍
+            to_berth_time = 2 * (abs(cur->x - dx) + std::abs(cur->y - dy));
         }
-        else
-        {
-            is_arrive = (cur->x == dx && cur->y == dy);
+        else if (d_type == 0 && cur->x == dx && cur->y == dy)
+        { // 到了交货点
+            is_arrive = true;
         }
         if (is_arrive)
         { // 到达目的地
             AStarSearchNodeNum.push_back(search_node_num);
-            return cur->g_value;
+            return cur->g_value + to_berth_time;
         }
         // 下一步动作之后的船状态(3种动作 0顺时针转 1逆时针转 2正方向前进)
         for (int move = 0; move < 3; move++)
@@ -2317,18 +2201,21 @@ void BoatDispatch()
         }
         else if (Boats[bi].status == 2)
         { // 装载状态进行讨论
-            if (Boats[bi].goods_num <= BoatCapacity)
-            { // 没有装满就等
-            }
-            else
-            { // 装满就去交货点
-                Berths[Boats[bi].dest_berth].boat_id = -1;
-                Boats[bi].dest_berth = -1;   // 清除港口目的地
-                Boats[bi].dest_delivery = 0; // 加入交货点目的地
-                Boats[bi].status = 0;
+            if (Boats[bi].goods_num >= BoatCapacity)
+            { // 装满或者不够时间回交货点 就滚
+                Boats[bi].dest_berth = -1;
+                Berths[Boats[bi].dest_berth].boat_id = -1; // 清除港口目的地以及港口的船
+                Boats[bi].dest_delivery = 0;               // 加入交货点目的地
+                Boats[bi].status = 0;                      // 清空状态避免后面装货
                 // 清空路径并且寻路（实际上靠泊的时候路径就一定清空了）
                 BoatRoutes[bi].clear();
                 is_need_astar[bi] = true;
+            }
+            else
+            { // 没有装满，有货继续装，没货就调度
+                if (Berths[Boats[bi].dest_berth].goods_queue.size() == 0)
+                { // 港口上没货了
+                }
             }
         }
         else
@@ -3120,7 +3007,7 @@ int main()
         PrintRobotsIns();
         BoatDispatch();
         LoadGoods();
-        BuyRobotsCxh();
+        // BuyRobotsCxh();
         BuyBoats1();
         puts("OK");
         fflush(stdout);
