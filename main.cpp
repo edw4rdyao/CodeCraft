@@ -52,7 +52,7 @@ const double TO_GOODS_WEIGHT = 3.0;
 const double H_VALUE_WEIGHT = 2.0;
 
 // 最大购买机器人和船的数量，购买机器人和船的价格
-const int ROBOT_BOAT_PROPORTION = 2;
+const int ROBOT_BOAT_PROPORTION = 3;
 int MAX_BUY_ROBOT_NUM = 20;
 int MAX_BUY_BOAT_NUM = 10;
 const int ROBOT_BUY_MONEY = 2000;
@@ -112,7 +112,7 @@ int ToBerthEstimateTime[MAX_BERTH_NUM][N][N];
 int ToDeliveryEstimateTime[MAX_DELIVERY_NUM][N][N];
 
 // 记录初始购买机器人数目和船的数目，用于调参
-int InitBuyRobotNum = 4;
+int InitBuyRobotNum = 6;
 int InitBuyBoatNum = (25000 - 2000 * InitBuyRobotNum) / 8000;
 
 // 初始要去的港口、购买船的位置
@@ -131,8 +131,8 @@ int RobotBuyNum = 15;
 int BoatBuyMoney = 8000;
 int BoatBuyGoods = 50;
 
-// 买东西策略选择
-int BuyChoose = 2; // xmc:1; cxh:2;
+//买东西策略选择
+int BuyChoose = 1; //xmc:1; cxh:2;
 
 struct BoatRouteState
 {
@@ -623,7 +623,7 @@ void InitWorldInfo()
 
     // 读入泊位的信息
     scanf("%d", &BerthNum);
-    MAX_BUY_BOAT_NUM = BerthNum;
+    MAX_BUY_BOAT_NUM = (int) BerthNum;
     MAX_BUY_ROBOT_NUM = ROBOT_BOAT_PROPORTION * MAX_BUY_BOAT_NUM;
     for (int i = 0; i < BerthNum; i++)
     {
@@ -2154,11 +2154,11 @@ void BoatDispatch()
         { // 装载状态进行讨论
             if (Boats[bi].goods_num >= BoatCapacity)
             { // 装满或者不够时间回交货点 就滚
-
-                Berths[Boats[bi].dest_berth].boat_id = -1; // 清除港口的船
-                Boats[bi].dest_berth = -1;                 // 清除港口目的地
-                Boats[bi].dest_delivery = 0;               // 加入交货点目的地
-                Boats[bi].status = 0;                      // 清空状态避免后面装货
+                Berths[Boats[bi].dest_berth].focus = 0;                                 // 清除港口聚焦
+                Berths[Boats[bi].dest_berth].boat_id = -1;                              // 清除港口的船
+                Boats[bi].dest_delivery = BerthNearestDelivery[Boats[bi].dest_berth];   // 加入交货点目的地
+                Boats[bi].dest_berth = -1;                                              // 清除港口目的地
+                Boats[bi].status = 0;                                                   // 清空状态避免后面装货
                 // 清空路径并且寻路（实际上靠泊的时候路径就一定清空了）
                 BoatRoutes[bi].clear();
                 is_need_astar[bi] = true;
@@ -2179,6 +2179,10 @@ void BoatDispatch()
             }
             else if (Boats[bi].dest_delivery != -1 && Boats[bi].x == Deliveries[Boats[bi].dest_delivery].x && Boats[bi].y == Deliveries[Boats[bi].dest_delivery].y)
             { // 到交货点的话，卸货然后再确定目的港口
+                // 卸货
+                OurMoney += Boats[bi].goods_value;
+                Boats[bi].goods_num = 0;
+                Boats[bi].goods_value = 0;
                 // 确定目标港口
                 int best_berth = FindBestBerthFromDelivery(bi, Boats[bi].dest_delivery);
                 Boats[bi].dest_delivery = -1;
@@ -2336,7 +2340,7 @@ void BuyARobot(int robot_buying_index)
 // 买一艘船，并指派其去的地方
 void BuyABoat(int boat_buying_index, int berth_index)
 {
-    if (!BoatBuyings[boat_buying_index].IsFree())
+    if (!JudgeBoatBuyingValid(boat_buying_index))
         return;
     printf("lboat %d %d\n", BoatBuyings[boat_buying_index].x, BoatBuyings[boat_buying_index].y);     // 输出指令
     Boats[BoatNum] = Boat(BoatBuyings[boat_buying_index].x, BoatBuyings[boat_buying_index].y, 0, 0); // 船的初始化
@@ -2827,7 +2831,7 @@ int BuyBoatsXmc()
 }
 
 // 购买函数
-void Buy()
+void Buy(ofstream &out_file)
 {
     if (BuyChoose == 2)
     {
@@ -2851,6 +2855,7 @@ void Buy()
     while (true)
     {
         buy_b = BuyBoatsXmc();
+        out_file << buy_b << endl;
         if (buy_b == 0)
             break;
     }
@@ -3031,6 +3036,18 @@ void PrintInitBuy(ofstream &out_file)
     }
 }
 
+// 输出初始购买船在哪买，去哪的信息
+void PrintInitBuyBoatInfo(ofstream &out_file)
+{
+    out_file << "--------------------------------------Init Buy Boat Info--------------------------------------" << endl;
+    for (int i = 0; i < MAX_BOAT_NUM; i++)
+    {
+        if (InitBuyingToBuy[i] == -1 || InitBerthToGo[i] == -1)
+            break;
+        out_file << "Boat " << i << "：Init Berth to go: " << InitBerthToGo[i] << ", Which Boat Buying to buy: " << InitBuyingToBuy[i] << endl;
+    }
+}
+
 // 输出信息
 void Print(ofstream &out_file, int interval)
 {
@@ -3041,10 +3058,11 @@ void Print(ofstream &out_file, int interval)
         PrintBuyingToBerthTime(out_file);
         PrintNearestBuyingAndDelivery(out_file);
         PrintBoatCapacity(out_file);
+        PrintInitBuy(out_file);
     }
 
     if (Frame == 1)
-        PrintInitBuy(out_file);
+        PrintInitBuyBoatInfo(out_file);
 
     if (Frame % interval != 0)
     {
@@ -3105,7 +3123,7 @@ int main()
         PrintRobotsIns();
         BoatDispatch();
         LoadGoods();
-        Buy();
+        Buy(out_file);
         puts("OK");
         fflush(stdout);
     }
