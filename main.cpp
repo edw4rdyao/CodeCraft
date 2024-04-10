@@ -116,12 +116,17 @@ int InitBuyBoatNum = (25000 - 2000 * InitBuyRobotNum) / 8000;
 int InitBerthToGo[MAX_BOAT_NUM];
 int InitBuyingToBuy[MAX_BOAT_NUM];
 
-// 预估每个机器人每帧拿多少价值，用于调参
+// 预估每个机器人、船每帧拿多少价值，用于调参
 double RobotEveryFrame = 2;
+double BoatEveryFrame = 3;
 // 港口上屯小于多少货再买机器人 或 有多少钱再买机器人 或 机器人数不能太多，用于调参
 int RobotBuyMoney = 10000;
 int RobotBuyGoods = 50;
 int RobotBuyNum = 15;
+
+// 港口上屯大于多少货再买船 或 有多少钱再买船 或 船数不能太多，用于调参
+int BoatBuyMoney = 8000;
+int BoatBuyGoods = 50;
 
 struct BoatRouteState
 {
@@ -2681,9 +2686,17 @@ int BuyBoats()
     }
     else // 其余时刻船的购买策略
     {
-        if (Money < BOAT_BUY_MONEY_THRESHOLD || BoatNum >= MAX_BUY_BOAT_NUM) // 金钱不够起限额或者超过最大购船数量，不买船
+        // 后续购买
+        // 统计囤积货物量
+        int num_goods = 0;
+        for (int bi = 0; bi < BerthNum; bi++)
         {
-            return buy;
+            num_goods += Berths[bi].goods_queue.size();
+        }
+        if ((15000 - Frame) * BoatEveryFrame <= 8000 || Money <= BoatBuyMoney || num_goods >= BoatBuyGoods || BoatNum >= MAX_BUY_BOAT_NUM)
+        {
+            // 再买就不礼貌了 或 没钱了 或 囤货太少 或 船太多
+            return;
         }
         else
         {
