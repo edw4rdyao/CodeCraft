@@ -2052,9 +2052,33 @@ void PrintRobotsIns()
 }
 
 // 在交货点找一个最好的港口出发
-int FindBestBerthFromDelivery(int boat_index)
+int FindBestBerthFromDelivery(int boat_id, int delivery_id)
 {
-    return -1;
+    int best_berth = -1;
+    double max_value = -1;
+    for (int bi = 0; bi < BerthNum; bi++)
+    { // 对每个没有船要去的港口，并且该港口可达
+        if (Berths[bi].boat_id == -1 && DeliveryToBerthTime[delivery_id][boat_id] != -1)
+        {
+            // 计算性价比（过去装完直接去交货点）
+            double goods_value = 0;
+            int transport_time = DeliveryToBerthTime[delivery_id][bi] + DeliveryToBerthTime[BerthNearestDelivery[bi]][bi];
+            queue<int> tmp = Berths[bi].goods_queue;
+            int to_load_goods = min((int)tmp.size(), BoatCapacity);
+            for (int j = 0; j < to_load_goods; j++)
+            {
+                goods_value += AllGoods[tmp.front()].val;
+                tmp.pop();
+            }
+            goods_value /= transport_time;
+            if (goods_value > max_value)
+            {
+                best_berth = bi;
+                max_value = goods_value;
+            }
+        }
+    }
+    return best_berth;
 }
 
 // 在港口选择其他港口或者返回交货点
@@ -2064,9 +2088,33 @@ int FindBestBerthOrGoFromBerth(int boat_index)
 }
 
 // 在购买点选择最好的港口
-int FindBestBerthFromBuying(int boat_index)
+int FindBestBerthFromBuying(int boat_id, int boat_buying_id)
 {
-    return -1;
+    int best_berth = -1;
+    double max_value = -1;
+    for (int bi = 0; bi < BerthNum; bi++)
+    { // 对每个没有船要去的港口，并且该购买点可达
+        if (Berths[bi].boat_id == -1 && BuyingToBerthTime[boat_buying_id][bi] != -1)
+        {
+            // 计算性价比（过去装完直接去交货点）
+            double goods_value = 0;
+            int transport_time = BuyingToBerthTime[boat_buying_id][bi] + DeliveryToBerthTime[BerthNearestDelivery[bi]][bi];
+            queue<int> tmp = Berths[bi].goods_queue;
+            int to_load_goods = min((int)tmp.size(), BoatCapacity);
+            for (int j = 0; j < to_load_goods; j++)
+            {
+                goods_value += AllGoods[tmp.front()].val;
+                tmp.pop();
+            }
+            goods_value /= transport_time;
+            if (goods_value > max_value)
+            {
+                best_berth = bi;
+                max_value = goods_value;
+            }
+        }
+    }
+    return best_berth;
 }
 
 void BoatToPositionAStar(int bi, int d_type, int d_id)
@@ -2252,17 +2300,11 @@ void BoatDispatch()
             }
             else if (Boats[bi].dest_delivery != -1 && Boats[bi].x == Deliveries[Boats[bi].dest_delivery].x && Boats[bi].y == Deliveries[Boats[bi].dest_delivery].y)
             { // 到交货点的话，卸货然后再确定目的港口
+                // 确定目标港口
+                int best_berth = FindBestBerthFromDelivery(bi, Boats[bi].dest_delivery);
                 Boats[bi].dest_delivery = -1;
-                // TODO: 确定目标港口
-                for (int bei = 0; bei < BerthNum; bei++)
-                {
-                    if (Berths[bei].boat_id == -1)
-                    {
-                        Boats[bi].dest_berth = bei;
-                        Berths[bei].boat_id = bi;
-                        break;
-                    }
-                }
+                Boats[bi].dest_berth = best_berth;
+                Berths[best_berth].boat_id = bi;
                 // 确定港口之后是要寻路的
                 is_need_astar[bi] = true;
             }
