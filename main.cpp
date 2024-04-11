@@ -17,7 +17,7 @@
 #include <fstream>
 #endif
 
-#define DEBUG1
+#define DEBUG
 
 using namespace std;
 
@@ -116,6 +116,8 @@ int ToDeliveryEstimateTime[MAX_DELIVERY_NUM][N][N];
 int InitBuyRobotNum = 8;
 int InitBuyBoatNum = (25000 - 2000 * InitBuyRobotNum) / 8000;
 
+// 初始机器人购买点购买的机器人数量
+int InitRobotToBuy[MAX_ROBOT_BUYING_NUM];
 // 初始要去的港口、购买船的位置
 int InitBerthToGo[MAX_BOAT_BUYING_NUM];
 int InitBuyingToBuy[MAX_BOAT_BUYING_NUM];
@@ -1113,8 +1115,71 @@ void InitBerthToBerth()
 // 初始化港口最近的购买点和交货点
 void InitRobotAndBoatBuy()
 {
+    memset(InitRobotToBuy, -1, sizeof(InitRobotToBuy));
     memset(InitBuyingToBuy, -1, sizeof(InitBuyingToBuy));
     memset(InitBerthToGo, -1, sizeof(InitBerthToGo));
+
+    // 机器人
+    int robot_buy_num_average = InitBuyRobotNum / (int) RobotBuyingNum;
+    int robot_buy_num_remain = InitBuyRobotNum % (int) RobotBuyingNum;
+    for (int rbi = 0; rbi < RobotBuyingNum; rbi++)
+    {
+        InitRobotToBuy[rbi] = robot_buy_num_average;
+        if (robot_buy_num_remain > 0)
+        {
+            InitRobotToBuy[rbi]++;
+            robot_buy_num_remain--;
+        }
+    }
+
+    struct BestBuy
+    {
+        int best_buy_cost = MAX_LENGTH;
+        int best_buy_buying;
+        int best_buy_berth;
+
+        // 重载 < 运算符，根据 best_buy_cost 比较
+        bool operator<(const BestBuy &other) const
+        { // 小的cost优先级高
+            return this->best_buy_cost > other.best_buy_cost;
+        }
+        bool operator==(const BestBuy &other) const
+        {
+            return this->best_buy_buying == other.best_buy_buying ||
+                   this->best_buy_berth == other.best_buy_berth;
+        }
+        BestBuy(int cost, int buying, int berth)
+        {
+            this->best_buy_cost = cost;
+            this->best_buy_buying = buying;
+            this->best_buy_berth = berth;
+        }
+    };
+
+    // 船
+    int init_buy_boat_num = 0;
+    priority_queue<BestBuy> best_buy_queue;
+
+    for (int bb = 0; bb < BoatBuyingNum; bb++) {
+        for (int be = 0; be < BerthNum; be++) {
+            if (BuyingToBerthTime[bb][be] != -1) {
+                best_buy_queue.emplace(BuyingToBerthTime[bb][be], bb, be);
+            }
+        }
+    }
+
+    set<BestBuy> best_buy_set;
+    while (init_buy_boat_num < InitBuyBoatNum && !best_buy_queue.empty()) {
+        BestBuy best_buy = best_buy_queue.top();
+        best_buy_queue.pop();
+        if (best_buy_set.find(best_buy) != best_buy_set.end()) {
+            continue;
+        }
+        InitBuyingToBuy[init_buy_boat_num] = best_buy.best_buy_buying;
+        InitBerthToGo[init_buy_boat_num] = best_buy.best_buy_berth;
+        init_buy_boat_num++;
+    }
+
 }
 
 // 初始化函数
@@ -2392,8 +2457,6 @@ void BuyRobotsCxh()
 {
     if (Frame == 1)
     {
-        memset(InitBuyingToBuy, -1, sizeof(InitBuyingToBuy));
-        memset(InitBerthToGo, -1, sizeof(InitBerthToGo));
         // 初始购买
         priority_queue<BestBuy> best_buy;
         // 对每个轮船购买点
@@ -2665,7 +2728,16 @@ int BuyRobotsXmc()
     int buy = 0;
     if (Frame == 1)
     {
-
+        for (int i = 0; i < RobotBuyingNum; i++)
+        {
+            for (int j = 0; j < InitRobotToBuy[i]; j++)
+            {
+                if (InitBuyingToBuy[j] == -1)
+                    break;
+                BuyARobot(i);
+                buy = 1;
+            }
+        }
     }
     else
     { // 后续购买
