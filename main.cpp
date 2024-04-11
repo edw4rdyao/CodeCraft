@@ -440,20 +440,6 @@ bool JudgeBoatBuyingValid(int buying_id)
     return true;
 }
 
-// 判断位置(x, y)与所有港口的可达性
-int CanGetBerth(int x, int y)
-{
-    int can_get = 0;
-    for (int b = 0; b < BerthNum; b++)
-    { // 对每个港口进行检查
-        if (BerthPathLength[b][x][y] >= 0)
-        {
-            can_get++;
-        }
-    }
-    return can_get;
-}
-
 // 找到所有被标记港口中的最短距离港口
 int LastMinBerth(int x, int y)
 {
@@ -823,12 +809,6 @@ double GetHValue(int x, int y, int dir, int action, int d_type, int d_id)
         }
     }
     h_value /= 6;
-
-    // 尽量不转弯（这样会错过最优路径）
-    // if (action == 0 || action == 1)
-    // {
-    //     h_value += 1;
-    // }
 
     return h_value;
 }
@@ -1356,13 +1336,6 @@ void RobotDispatchGreedy()
 
     for (int ri = 0; ri < RobotNum; ri++)
     { // 对于每个机器人
-        // if (Robots[ri].is_dead == 1 || Robots[ri].status == 0)
-        // { // 如果机器人不能动（被困或者处于恢复状态），就不考虑
-        //     robot_match_num++;
-        //     robots_match[ri] = 1;
-        //     Robots[ri].dir = -1;
-        //     continue;
-        // }
         if (Robots[ri].is_goods == 1)
         { // 如果机器人拿着物品就直接找港口
             int now_berth_id = IsOnBerth(Robots[ri].x, Robots[ri].y);
@@ -1798,15 +1771,6 @@ void AvoidCollision()
                         if (Robots[rj].dir < 0 && Robots[rj].x == nx_ri && Robots[rj].y == ny_ri)
                         {
                             is_collision = true;
-                            // if (Robots[rj].status == 0)
-                            // { // ？若不动的处于恢复状态，我垂直移动，不行我就罚站
-                            //     if (!CrashAvoid(ri))
-                            //     {
-                            //         Robots[ri].dir = -1;
-                            //     };
-                            //     is_collision_robot[ri] = true;
-                            // }
-                            // else
                             // 若不动的只是在罚站，他垂直移动
                             if (is_collision_robot[ri] && is_collision_robot[rj])
                             {                   // 若都有碰撞过
@@ -2059,7 +2023,7 @@ int BoatToPositionAStar(int bi, int d_type, int d_id)
             is_arrive = (IsInBerthRange(cur->x, cur->y) == d_id);
         }
         else
-        {
+        { // 目的地是交货点，核心点在交货点
             is_arrive = (cur->x == dx && cur->y == dy);
         }
         if (is_arrive)
@@ -2198,22 +2162,22 @@ void BoatDispatch()
         else if (Boats[bi].status == 2)
         { // 装载状态进行讨论
             // 找最好的目的地
-            int to_dilivery[DeliveryNum];
-            int min_len = MAX_LENGTH;
-            int best_dilivery = -1;
+            // int to_dilivery[DeliveryNum];
+            // int min_len = MAX_LENGTH;
+            // int best_dilivery = -1;
             // 对所有交货点
-            for (int di = 0; di < DeliveryNum; di++)
-            {
-                to_dilivery[di] = BoatToPositionAStar(bi, 0, di);
-                if (min_len >= to_dilivery[di])
-                {
-                    min_len = to_dilivery[di];
-                    best_dilivery = di;
-                }
-            }
-            if (Boats[bi].goods_num >= BoatCapacity || 15000 - Frame <= to_dilivery[best_dilivery])
+            // for (int di = 0; di < DeliveryNum; di++)
+            // {
+            //     to_dilivery[di] = BoatToPositionAStar(bi, 0, di);
+            //     if (min_len >= to_dilivery[di])
+            //     {
+            //         min_len = to_dilivery[di];
+            //         best_dilivery = di;
+            //     }
+            // }
+            if (Boats[bi].goods_num >= BoatCapacity || 15000 - Frame <= (DeliveryToBerthTime[BerthNearestDelivery[Boats[bi].dest_berth]][Boats[bi].dest_berth] + 20))
             { // 装满或者不够时间回交货点 就滚
-                RunToDeliveryGun(bi, best_dilivery);
+                RunToDeliveryGun(bi, BerthNearestDelivery[Boats[bi].dest_berth]);
                 // 清空路径并且寻路（实际上靠泊的时候路径就一定清空了）
                 is_need_astar[bi] = true;
             }
@@ -2224,7 +2188,7 @@ void BoatDispatch()
                     int best_berth = FindBestBerthOrGoFromBerth(bi);
                     if (best_berth == -2)
                     { // 直接滚
-                        RunToDeliveryGun(bi);
+                        RunToDeliveryGun(bi, BerthNearestDelivery[Boats[bi].dest_berth]);
                         is_need_astar[bi] = true;
                     }
                     else if (best_berth != -1)
