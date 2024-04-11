@@ -54,9 +54,10 @@ const double TO_GOODS_WEIGHT = 3.0;
 const double H_VALUE_WEIGHT = 2.0;
 
 // 最大购买机器人和船的数量，购买机器人和船的价格
-const int ROBOT_BOAT_PROPORTION = 4;
-int MAX_BUY_ROBOT_NUM = 20;
-int MAX_BUY_BOAT_NUM = 10;
+// const int ROBOT_BOAT_PROPORTION = 3;
+int MAX_BUY_ROBOT_NUM = 15;
+const int MAX_BUY_BOAT_NUM_ARRAY[10] = {0, 1, 1, 1, 1, 2, 2, 3, 3, 3};
+int MAX_BUY_BOAT_NUM;
 const int ROBOT_BUY_MONEY = 2000;
 const int BOAT_BUY_MONEY = 8000;
 
@@ -614,8 +615,7 @@ void InitWorldInfo()
 
     // 读入泊位的信息
     scanf("%d", &BerthNum);
-    MAX_BUY_BOAT_NUM = max((int)BerthNum / 2, 1);
-    MAX_BUY_ROBOT_NUM = ROBOT_BOAT_PROPORTION * (int)BerthNum;
+    MAX_BUY_BOAT_NUM = MAX_BUY_BOAT_NUM_ARRAY[BerthNum];
     for (int i = 0; i < BerthNum; i++)
     {
         int id;
@@ -3040,8 +3040,10 @@ void BuyBoatsYzh()
 // 输出实际金钱与我们自己算的金钱
 void PrintMoney(ofstream &out_file)
 {
-    out_file << "Real money: " << Money << endl;
-    out_file << "Our  money: " << OurMoney << endl;
+    out_file << setw(10) << "Our Money: " << OurMoney << endl;
+    out_file << setw(10) << "Real Money: " << Money << endl;
+    out_file << setw(10) << "Robot Money: " << RobotMoney << endl;
+    out_file << setw(10) << "Goods Money: " << GoodsValue << endl;
 }
 
 // 输出机器人的数量
@@ -3085,18 +3087,6 @@ void PrintBoatInfo(ofstream &out_file)
                  << setw(3) << Boats[i].goods_num << ", goods value "
                  << setw(3) << Boats[i].goods_value << endl;
     }
-    if (RobotNum == MAX_BUY_ROBOT_NUM){
-        out_file << "Robot Money: " << RobotMoney << endl;
-        out_file << "Goods Money: " << GoodsValue << endl;
-    }
-}
-
-// 输出机器人所获得的总金额
-void PrintRobotsMoney(ofstream &out_file)
-{
-    out_file << "----------------------------------------Robot Money-------------------------------------------" << endl;
-    out_file << "Robot Money: " << RobotMoney << endl;
-    out_file << "Goods Money: " << GoodsValue << endl;
 }
 
 // 输出地图信息
@@ -3238,12 +3228,8 @@ void Print(ofstream &out_file, int interval)
         out_file << "----------------------------------------Frame: " << left << setw(5) << Frame << "------------------------------------------" << endl;
         PrintMoney(out_file);
         PrintRobotNum(out_file);
-        PrintBerthGoodsInfo(out_file);
         PrintBoatInfo(out_file);
-    }
-    if (Frame == MAX_FRAME - 1)
-    {
-        PrintRobotsMoney(out_file);
+        PrintBerthGoodsInfo(out_file);
     }
 }
 
