@@ -45,6 +45,8 @@ const int N = 200;
 const int MAX_GOODS_NUM = 150010;
 const int MAX_LENGTH = 40000;
 
+int GoodsValue = 0;
+
 // 可以修改的参数 每个机器人BFS找的最多路径与长度 离货物距离的比重
 const int MAX_ROAD_NUM = 10;
 const int MAX_ROAD_LEN = 350;
@@ -1209,6 +1211,7 @@ void Input()
     {
         int x, y, val;
         scanf("%d%d%d", &x, &y, &val);
+        GoodsValue += val;
         if (val == 0)
         { // 消失或者被拿走的物品
             WorldGoods[x][y] = 0;
@@ -1835,6 +1838,10 @@ void AvoidCollision()
                         // 碰上不移动的机器人j
                         if (Robots[rj].dir < 0 && Robots[rj].x == nx_ri && Robots[rj].y == ny_ri)
                         {
+                            // 若不动的在主干道
+                            if (IsOnMainRoad(Robots[rj].x,Robots[rj].y)){
+                                continue;
+                            }
                             is_collision = true;
                             // 若不动的只是在罚站，他垂直移动
                             if (is_collision_robot[ri] && is_collision_robot[rj])
@@ -1868,6 +1875,11 @@ void AvoidCollision()
                             if (Robots[rj].x == nx_ri && Robots[rj].y == ny_ri && Robots[ri].x == nx_rj && Robots[ri].y == ny_rj)
                             {
                                 is_collision = true;
+                                // 若他下一步要进我主干道
+                                if (IsOnMainRoad(nx_rj, ny_rj)){
+                                    Robots[ri].dir = -1;
+                                    break;
+                                }
                                 HedgeAvoid(ri, rj, is_collision_robot);
                                 break;
                             }
@@ -2958,6 +2970,10 @@ void PrintBoatInfo(ofstream &out_file)
                  << setw(3) << Boats[i].goods_num << ", goods value "
                  << setw(3) << Boats[i].goods_value << endl;
     }
+    if (RobotNum == MAX_BUY_ROBOT_NUM){
+        out_file << "Robot Money: " << RobotMoney << endl;
+        out_file << "Goods Money: " << GoodsValue << endl;
+    }
 }
 
 // 输出机器人所获得的总金额
@@ -2965,6 +2981,7 @@ void PrintRobotsMoney(ofstream &out_file)
 {
     out_file << "----------------------------------------Robot Money-------------------------------------------" << endl;
     out_file << "Robot Money: " << RobotMoney << endl;
+    out_file << "Goods Money: " << GoodsValue << endl;
 }
 
 // 输出地图信息
