@@ -117,8 +117,8 @@ int InitBuyRobotNum = 8;
 int InitBuyBoatNum = (25000 - 2000 * InitBuyRobotNum) / 8000;
 
 // 初始要去的港口、购买船的位置
-int InitBerthToGo[MAX_BOAT_NUM];
-int InitBuyingToBuy[MAX_BOAT_NUM];
+int InitBerthToGo[MAX_BOAT_BUYING_NUM];
+int InitBuyingToBuy[MAX_BOAT_BUYING_NUM];
 
 // 预估每个机器人、船每帧拿多少价值，用于调参
 double RobotEveryFrame = 2;
@@ -1111,7 +1111,7 @@ void InitBerthToBerth()
 }
 
 // 初始化港口最近的购买点和交货点
-void InitBerthNearest()
+void InitRobotAndBoatBuy()
 {
     memset(InitBuyingToBuy, -1, sizeof(InitBuyingToBuy));
     memset(InitBerthToGo, -1, sizeof(InitBerthToGo));
@@ -1126,7 +1126,7 @@ void Init()
     InitToDeliveryEstimateTimeDijkstra();
     InitDeliveryToBerth();
     InitBuyingToBerth();
-    InitBerthNearest();
+    InitRobotAndBoatBuy();
     // 输出OK
     printf("OK\n");
     fflush(stdout);
@@ -2136,11 +2136,11 @@ int BoatToPositionAStar(int bi, int d_type, int d_id)
 }
 
 // 船滚去交货点
-void RunToDeliveryGun(int bi, int best_dilivery)
+void RunToDeliveryGun(int bi, int best_delivery)
 {                                              // 船
     Berths[Boats[bi].dest_berth].focus = 0;    // 清除港口聚焦
     Berths[Boats[bi].dest_berth].boat_id = -1; // 清除港口的船
-    Boats[bi].dest_delivery = best_dilivery;   // 加入交货点目的地
+    Boats[bi].dest_delivery = best_delivery;   // 加入交货点目的地
     Boats[bi].dest_berth = -1;                 // 清除港口目的地
     Boats[bi].status = 0;                      // 清空状态避免后面装货
     // 清空路径并且寻路（实际上靠泊的时候路径就一定清空了）
@@ -2665,142 +2665,7 @@ int BuyRobotsXmc()
     int buy = 0;
     if (Frame == 1)
     {
-        // 初始购买
-        // 初始购买
-        priority_queue<BestBuy> best_buy;
-        // 对每个轮船购买点
-        for (int bbi = 0; bbi < BoatBuyingNum; bbi++)
-        {
-            // 对每个港口
-            for (int bi = 0; bi < BerthNum; bi++)
-            {
-                if (BuyingToBerthTime[bbi][bi] < 0)
-                {
-                    // 船不可达的港口不去
-                    continue;
-                }
-                else
-                {
-                    // 船可达的港口
-                    // 对每个机器人购买点
-                    for (int rbi = 0; rbi < RobotBuyingNum; rbi++)
-                    {
-                        int x = RobotBuyings[rbi].x;
-                        int y = RobotBuyings[rbi].y;
-                        if (BerthPathLength[bi][x][y] < 0)
-                        {
-                            // 机器人不可达
-                            continue;
-                        }
-                        else
-                        {
-                            best_buy.emplace(BerthPathLength[bi][x][y] + BuyingToBerthTime[bbi][bi], rbi, bbi, bi);
-                        }
-                    }
-                }
-            }
-        }
-        // 根据船数目分配机器人
-        if (best_buy.size() < InitBuyBoatNum)
-        {
-            // 若可达港口小于初始船只数
-            int buy_robot_num = InitBuyRobotNum / (int)best_buy.size();
-            int boat_index = 0;
-            while (!best_buy.empty())
-            {
-                BestBuy choose = best_buy.top();
-                if (Berths[choose.best_buy_berth].focus == 1)
-                {
-                    // 若这个方案是同一港口，则舍弃
-                    best_buy.pop();
-                    continue;
-                }
-                // 若这个方案是同一船只购买点，则舍弃
-                for (int i = 0; i < boat_index; i++)
-                {
-                    if (choose.best_buy_boat == InitBuyingToBuy[i])
-                    {
-                        best_buy.pop();
-                        continue;
-                    }
-                }
-                for (int i = 0; i < buy_robot_num; i++)
-                {
-                    if (InitBuyRobotNum == 0)
-                    {
-                        break;
-                    }
-                    else
-                    {
-                        printf("lbot %d %d\n", RobotBuyings[choose.best_buy_bot].x, RobotBuyings[choose.best_buy_bot].y);
-                        InitBuyRobotNum--;
-                    }
-                }
-                InitBuyingToBuy[boat_index] = choose.best_buy_boat;
-                InitBerthToGo[boat_index] = choose.best_buy_berth;
-                boat_index++;
-                // Berths[choose.best_buy_berth].focus = 1; // 初始标记只送这几个港口
-                best_buy.pop();
-            }
-        }
-        else
-        {
-            int buy_robot_num = InitBuyRobotNum / InitBuyBoatNum;
-            int boat_index = 0;
-            // 对所有船
-            for (int bi = 0; bi < InitBuyBoatNum; bi++)
-            {
-                BestBuy choose = best_buy.top();
-                while (Berths[choose.best_buy_berth].focus == 1)
-                {
-                    // 若这个方案是同一港口，则舍弃
-                    best_buy.pop();
-                    if (best_buy.empty())
-                    {
-                        break;
-                    }
-                    choose = best_buy.top();
-                }
-                if (best_buy.empty())
-                {
-                    return buy;
-                }
-                // 若这个方案是同一船只购买点，则舍弃
-                for (int i = 0; i < boat_index; i++)
-                {
-                    while (choose.best_buy_boat == InitBuyingToBuy[i])
-                    {
-                        best_buy.pop();
-                        if (best_buy.empty())
-                        {
-                            break;
-                        }
-                        choose = best_buy.top();
-                    }
-                }
-                if (best_buy.empty())
-                {
-                    return buy;
-                }
-                for (int i = 0; i < buy_robot_num; i++)
-                {
-                    if (InitBuyRobotNum == 0)
-                    {
-                        break;
-                    }
-                    else
-                    {
-                        BuyARobot(choose.best_buy_bot);
-                        InitBuyRobotNum--;
-                    }
-                }
-                InitBuyingToBuy[boat_index] = choose.best_buy_boat;
-                InitBerthToGo[boat_index] = choose.best_buy_berth;
-                boat_index++;
-                // Berths[choose.best_buy_berth].focus = 1; // 初始标记只送这几个港口
-                best_buy.pop();
-            }
-        }
+
     }
     else
     { // 后续购买
@@ -2857,7 +2722,7 @@ int BuyBoatsXmc()
     int buy = 0;
     if (Frame == 1)
     {
-        for (int i = 0; i < MAX_BOAT_NUM; i++)
+        for (int i = 0; i < MAX_BOAT_BUYING_NUM; i++)
         {
             if (InitBuyingToBuy[i] == -1)
                 break;
@@ -3115,7 +2980,7 @@ void PrintInitBuy(ofstream &out_file)
     out_file << "Init Buy Robot Num: " << InitBuyRobotNum << endl;
     out_file << "Init Buy Boat Num: " << InitBuyBoatNum << endl;
     out_file << "Init Buy choose: " << BuyChoose << endl;
-    for (int i = 0; i < MAX_BOAT_NUM; i++)
+    for (int i = 0; i < MAX_BOAT_BUYING_NUM; i++)
     {
         if (InitBuyingToBuy[i] == -1 || InitBerthToGo[i] == -1)
             break;
