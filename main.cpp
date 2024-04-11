@@ -1,8 +1,4 @@
-#ifdef _WIN32
-#include <bits/stdc++.h>
-#include <iostream>
-#include <fstream>
-#else
+#ifdef __APPLE__
 #include <queue>
 #include <vector>
 #include <cstdio>
@@ -15,6 +11,10 @@
 #include <thread>
 #include <mutex>
 #include <cassert>
+#else
+#include <bits/stdc++.h>
+#include <iostream>
+#include <fstream>
 #endif
 
 #define DEBUG1
