@@ -36,7 +36,7 @@ const int MAX_DELIVERY_NUM = 10;
 unsigned int DeliveryNum = 0;
 
 const int MAX_ROBOT_BUYING_NUM = 10;
-unsigned int RobotBuyingNum = 0;
+unsigned int RobotBuyingNum = 0; // 机器人购买点数量
 
 const int MAX_BOAT_BUYING_NUM = 10;
 unsigned int BoatBuyingNum = 0;
@@ -45,6 +45,8 @@ const int N = 200;
 const int MAX_GOODS_NUM = 150010;
 const int MAX_LENGTH = 40000;
 
+int GoodsValue = 0;
+
 // 可以修改的参数 每个机器人BFS找的最多路径与长度 离货物距离的比重
 const int MAX_ROAD_NUM = 10;
 const int MAX_ROAD_LEN = 350;
@@ -52,9 +54,10 @@ const double TO_GOODS_WEIGHT = 3.0;
 const double H_VALUE_WEIGHT = 2.0;
 
 // 最大购买机器人和船的数量，购买机器人和船的价格
-const int ROBOT_BOAT_PROPORTION = 4;
-int MAX_BUY_ROBOT_NUM = 20;
-int MAX_BUY_BOAT_NUM = 10;
+// const int ROBOT_BOAT_PROPORTION = 3;
+int MAX_BUY_ROBOT_NUM = 15;
+const int MAX_BUY_BOAT_NUM_ARRAY[10] = {0, 1, 1, 1, 1, 2, 2, 3, 3, 3};
+int MAX_BUY_BOAT_NUM;
 const int ROBOT_BUY_MONEY = 2000;
 const int BOAT_BUY_MONEY = 8000;
 
@@ -612,8 +615,7 @@ void InitWorldInfo()
 
     // 读入泊位的信息
     scanf("%d", &BerthNum);
-    MAX_BUY_BOAT_NUM = max((int)BerthNum / 2, 1);
-    MAX_BUY_ROBOT_NUM = ROBOT_BOAT_PROPORTION * (int)BerthNum;
+    MAX_BUY_BOAT_NUM = MAX_BUY_BOAT_NUM_ARRAY[BerthNum];
     for (int i = 0; i < BerthNum; i++)
     {
         int id;
@@ -693,6 +695,121 @@ void InitToBerthBFS()
             }
         }
     }
+}
+
+
+//计算机器人购买点占据地图大小
+int CalculateArea(int buy_index)
+{
+    int visted[N][N]; //判断是否bfs过
+    memset(visted, -1, sizeof(visted));
+    int area = 0;
+    int buy_x = RobotBuyings[buy_index].x;
+    int buy_y = RobotBuyings[buy_index].y;
+    queue<pair<int, int>> q;
+    // 将本位置加入
+    q.push({buy_x, buy_y});
+    area++;
+    visted[buy_x][buy_y] = 0;
+    while (!q.empty())
+    { // 从队列中取出一个点
+        pair<int, int> cur_pos = q.front();
+        q.pop();
+        // 四个方向随机遍历
+        vector<int> random_dir = GetRandomDirection();
+        for (int i = 0; i < 4; i++)
+        { // 遍历到下一个点
+            int dir = random_dir[i];
+            // int dir = i;
+            int nx = cur_pos.first + DX[dir];
+            int ny = cur_pos.second + DY[dir];
+            if (IsLandValid(nx, ny))
+            { // 判断陆上是否可以到达
+                int next_path_length = visted[cur_pos.first][cur_pos.second] + 1;
+                if (visted[nx][ny] < 0)
+                { // 这个点之前没有遍历过
+                    visted[nx][ny] = next_path_length;
+                    // 将该点加入队列
+                    q.push({nx, ny});
+                    area++;
+                }
+            }
+        }
+    }
+    return area;
+}
+
+int AllocateRobotNum[MAX_ROBOT_NUM] = {0}; // 每个购买点分配的机器人数
+int AreaBuying[MAX_ROBOT_NUM] = {0}; // 每个购买点占据面积大小
+int Area = 0; // 总面积大小
+// 按购买点分配机器人
+void AllocateRobot()
+{
+    int buy_index = 0;
+    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
+        if (buy_index == 0){
+            // 0号购买点直接bfs
+            AreaBuying[buy_index] = CalculateArea(buy_index);
+            Area += AreaBuying[buy_index];
+            AllocateRobotNum[buy_index] = buy_index;
+        }
+        else{
+            // 对其他的要看之前的购买点是否连通
+            bool is_link = false; //是否连通
+            for (int pre_buy_index = 0; pre_buy_index < buy_index; pre_buy_index++){
+                // 之前的港口
+                int bei = 0;
+                for (bei = 0; bei < BerthNum; bei++){
+                    // 根据跟港口的连通性判断
+                    if (BerthPathLength[bei][RobotBuyings[pre_buy_index].x][RobotBuyings[pre_buy_index].y] > 0){
+                        // 之前连通
+                        if (BerthPathLength[bei][RobotBuyings[buy_index].x][RobotBuyings[buy_index].y] > 0){
+                            // 我也连通
+                            is_link = true;
+                            break;
+                        }
+                        else{
+                            continue;
+                        }
+                    }
+                }
+                if (is_link){
+                    // 有连通,相同面积
+                    AreaBuying[buy_index] = AreaBuying[bei];
+                    AllocateRobotNum[buy_index] = bei; //分配数目跟bei相同
+                    break;
+                }
+            }
+            if (!is_link){
+                // 无连通，重新bfs
+                AreaBuying[buy_index] = CalculateArea(buy_index);
+                Area += AreaBuying[buy_index];
+                AllocateRobotNum[buy_index] = buy_index;
+            }
+        }
+    }
+    // MAX_BUY_ROBOT_NUM = (int)(Area / 1000); //机器人总数
+    // 开始分配
+    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
+        if (AllocateRobotNum[buy_index] == buy_index){
+            int num = 0;
+            for (int after_buy_index = buy_index; after_buy_index < RobotBuyingNum; after_buy_index++){
+                // 统计之后几个人跟我连通
+                if (AllocateRobotNum[after_buy_index] == buy_index){
+                    num++;
+                }
+            }
+            AllocateRobotNum[buy_index] = (int)(MAX_BUY_ROBOT_NUM*((double)(AreaBuying[buy_index])/(double)(Area))/(double)(num));
+        }
+        else{
+            AllocateRobotNum[buy_index] = AllocateRobotNum[AllocateRobotNum[buy_index]];
+        }
+    }
+
+    // MAX_BUY_ROBOT_NUM = 0;
+    // for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
+    //     MAX_BUY_ROBOT_NUM += AllocateRobotNum[buy_index];
+    // }
 }
 
 struct BoatState
@@ -1213,6 +1330,7 @@ void Input()
     {
         int x, y, val;
         scanf("%d%d%d", &x, &y, &val);
+        GoodsValue += val;
         if (val == 0)
         { // 消失或者被拿走的物品
             WorldGoods[x][y] = 0;
@@ -1839,6 +1957,10 @@ void AvoidCollision()
                         // 碰上不移动的机器人j
                         if (Robots[rj].dir < 0 && Robots[rj].x == nx_ri && Robots[rj].y == ny_ri)
                         {
+                            // 若不动的在主干道
+                            if (IsOnMainRoad(Robots[rj].x,Robots[rj].y)){
+                                continue;
+                            }
                             is_collision = true;
                             // 若不动的只是在罚站，他垂直移动
                             if (is_collision_robot[ri] && is_collision_robot[rj])
@@ -1872,6 +1994,11 @@ void AvoidCollision()
                             if (Robots[rj].x == nx_ri && Robots[rj].y == ny_ri && Robots[ri].x == nx_rj && Robots[ri].y == ny_rj)
                             {
                                 is_collision = true;
+                                // 若他下一步要进我主干道
+                                if (IsOnMainRoad(nx_rj, ny_rj)){
+                                    Robots[ri].dir = -1;
+                                    break;
+                                }
                                 HedgeAvoid(ri, rj, is_collision_robot);
                                 break;
                             }
@@ -2933,8 +3060,10 @@ void BuyBoatsYzh()
 // 输出实际金钱与我们自己算的金钱
 void PrintMoney(ofstream &out_file)
 {
-    out_file << "Real money: " << Money << endl;
-    out_file << "Our  money: " << OurMoney << endl;
+    out_file << setw(10) << "Our Money: " << OurMoney << endl;
+    out_file << setw(10) << "Real Money: " << Money << endl;
+    out_file << setw(10) << "Robot Money: " << RobotMoney << endl;
+    out_file << setw(10) << "Goods Money: " << GoodsValue << endl;
 }
 
 // 输出机器人的数量
@@ -2978,13 +3107,6 @@ void PrintBoatInfo(ofstream &out_file)
                  << setw(3) << Boats[i].goods_num << ", goods value "
                  << setw(3) << Boats[i].goods_value << endl;
     }
-}
-
-// 输出机器人所获得的总金额
-void PrintRobotsMoney(ofstream &out_file)
-{
-    out_file << "----------------------------------------Robot Money-------------------------------------------" << endl;
-    out_file << "Robot Money: " << RobotMoney << endl;
 }
 
 // 输出地图信息
@@ -3079,6 +3201,13 @@ void PrintInitBuy(ofstream &out_file)
         out_file << "Init Berth to go: " << InitBerthToGo[i] << endl;
         out_file << "Init Boat Buying: " << InitBuyingToBuy[i] << endl;
     }
+
+    out_file <<  endl;
+    out_file << "AREA: " << Area << endl;
+    for (int i = 0; i < RobotBuyingNum; i++){
+        out_file << "RobotBuying area: " << i << ' ' << AreaBuying[i] << endl;
+        out_file << "RobotBuying robot: " << i << ' ' << AllocateRobotNum[i] << endl;
+    }
 }
 
 // 输出初始购买船在哪买，去哪的信息
@@ -3119,12 +3248,8 @@ void Print(ofstream &out_file, int interval)
         out_file << "----------------------------------------Frame: " << left << setw(5) << Frame << "------------------------------------------" << endl;
         PrintMoney(out_file);
         PrintRobotNum(out_file);
-        PrintBerthGoodsInfo(out_file);
         PrintBoatInfo(out_file);
-    }
-    if (Frame == MAX_FRAME - 1)
-    {
-        PrintRobotsMoney(out_file);
+        PrintBerthGoodsInfo(out_file);
     }
 }
 
@@ -3151,6 +3276,7 @@ ofstream CreateFile()
 int main()
 {
     Init();
+    AllocateRobot();
 
 #ifdef DEBUG
     ofstream out_file = CreateFile();
