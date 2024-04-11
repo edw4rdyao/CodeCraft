@@ -964,7 +964,7 @@ int PositionToPositionAStar(int sx, int sy, int d_type, int d_id)
         { // 到了港口的靠泊区
             is_arrive = true;
             // 大约为目前位置到港口位置曼哈顿距离的两倍
-            to_berth_time = 2 * (abs(cur->x - dx) + std::abs(cur->y - dy));
+            to_berth_time = 2 * (abs(cur->x - dx) + abs(cur->y - dy));
         }
         else if (d_type == 0 && cur->x == dx && cur->y == dy)
         { // 到了交货点
@@ -1120,8 +1120,8 @@ void InitRobotAndBoatBuy()
     memset(InitBerthToGo, -1, sizeof(InitBerthToGo));
 
     // 机器人
-    int robot_buy_num_average = InitBuyRobotNum / (int) RobotBuyingNum;
-    int robot_buy_num_remain = InitBuyRobotNum % (int) RobotBuyingNum;
+    int robot_buy_num_average = InitBuyRobotNum / (int)RobotBuyingNum;
+    int robot_buy_num_remain = InitBuyRobotNum % (int)RobotBuyingNum;
     for (int rbi = 0; rbi < RobotBuyingNum; rbi++)
     {
         InitRobotToBuy[rbi] = robot_buy_num_average;
@@ -1160,26 +1160,30 @@ void InitRobotAndBoatBuy()
     int init_buy_boat_num = 0;
     priority_queue<BestBuy> best_buy_queue;
 
-    for (int bb = 0; bb < BoatBuyingNum; bb++) {
-        for (int be = 0; be < BerthNum; be++) {
-            if (BuyingToBerthTime[bb][be] != -1) {
+    for (int bb = 0; bb < BoatBuyingNum; bb++)
+    {
+        for (int be = 0; be < BerthNum; be++)
+        {
+            if (BuyingToBerthTime[bb][be] != -1)
+            {
                 best_buy_queue.emplace(BuyingToBerthTime[bb][be], bb, be);
             }
         }
     }
 
     set<BestBuy> best_buy_set;
-    while (init_buy_boat_num < InitBuyBoatNum && !best_buy_queue.empty()) {
+    while (init_buy_boat_num < InitBuyBoatNum && !best_buy_queue.empty())
+    {
         BestBuy best_buy = best_buy_queue.top();
         best_buy_queue.pop();
-        if (best_buy_set.find(best_buy) != best_buy_set.end()) {
+        if (best_buy_set.find(best_buy) != best_buy_set.end())
+        {
             continue;
         }
         InitBuyingToBuy[init_buy_boat_num] = best_buy.best_buy_buying;
         InitBerthToGo[init_buy_boat_num] = best_buy.best_buy_berth;
         init_buy_boat_num++;
     }
-
 }
 
 // 初始化函数
@@ -1962,7 +1966,7 @@ void PrintRobotsIns()
     }
 }
 
-// 在交货点找一个最好的港口出发
+// 在交货点找一个最好的港口出发(但是要确保去了可以回来)
 int FindBestBerthFromDelivery(int boat_id, int delivery_id)
 {
     int best_berth = -1;
@@ -1974,6 +1978,8 @@ int FindBestBerthFromDelivery(int boat_id, int delivery_id)
             // 计算性价比（过去装完直接去交货点）
             double goods_value = 0;
             int transport_time = DeliveryToBerthTime[delivery_id][bi] + DeliveryToBerthTime[BerthNearestDelivery[bi]][bi];
+            if (MAX_FRAME - Frame < transport_time + 15)
+                continue;
             queue<int> tmp = Berths[bi].goods_queue;
             int to_load_goods = min((int)tmp.size(), BoatCapacity);
             for (int j = 0; j < to_load_goods; j++)
@@ -2004,6 +2010,8 @@ int FindBestBerthOrGoFromBerth(int boat_id)
             // 计算性价比
             double goods_value = Boats[boat_id].goods_value;
             int transport_time = BerthToBerthTime[Boats[boat_id].dest_berth][bi] + DeliveryToBerthTime[BerthNearestDelivery[bi]][bi];
+            if (MAX_FRAME - Frame < transport_time + 15)
+                continue;
             queue<int> tmp = Berths[bi].goods_queue;
             int to_load_goods = min((int)tmp.size(), BoatCapacity - Boats[boat_id].goods_num); // 还能装的货（囤的货和还能装的货取最小值）
             for (int j = 0; j < to_load_goods; j++)
@@ -2240,7 +2248,7 @@ void BoatDispatch()
             //         best_dilivery = di;
             //     }
             // }
-            if (Boats[bi].goods_num >= BoatCapacity || 15000 - Frame <= (DeliveryToBerthTime[BerthNearestDelivery[Boats[bi].dest_berth]][Boats[bi].dest_berth] + 20))
+            if (Boats[bi].goods_num >= BoatCapacity || MAX_FRAME - Frame < (DeliveryToBerthTime[BerthNearestDelivery[Boats[bi].dest_berth]][Boats[bi].dest_berth] + 10))
             { // 装满或者不够时间回交货点 就滚
                 RunToDeliveryGun(bi, BerthNearestDelivery[Boats[bi].dest_berth]);
                 // 清空路径并且寻路（实际上靠泊的时候路径就一定清空了）
@@ -2287,11 +2295,19 @@ void BoatDispatch()
                 Boats[bi].goods_value = 0;
                 // 确定目标港口
                 int best_berth = FindBestBerthFromDelivery(bi, Boats[bi].dest_delivery);
-                Boats[bi].dest_delivery = -1;
-                Boats[bi].dest_berth = best_berth;
-                Berths[best_berth].boat_id = bi;
-                // 确定港口之后是要寻路的
-                is_need_astar[bi] = true;
+                if (best_berth != -1)
+                {
+                    Boats[bi].dest_delivery = -1;
+                    Boats[bi].dest_berth = best_berth;
+                    Berths[best_berth].boat_id = bi;
+                    // 确定港口之后是要寻路的
+                    is_need_astar[bi] = true;
+                }
+                else
+                { // 找不到可以去的港口了，后面重置
+                    Boats[bi].dest_delivery = -1;
+                    Boats[bi].dest_berth = -1;
+                }
             }
             else
             {
@@ -2335,7 +2351,7 @@ void BoatDispatch()
             { // 目的地是港口
                 BoatToPositionAStar(bi, 1, Boats[bi].dest_berth);
             }
-            else
+            else if (Boats[bi].dest_delivery != -1)
             { // 目的地是交货点
                 BoatToPositionAStar(bi, 0, Boats[bi].dest_delivery);
             }
@@ -2353,6 +2369,10 @@ void BoatDispatch()
             { // 找到航线，更新
                 BoatCanNotFindRoute[bi] = 0;
             }
+        }
+        else if (BoatRoutes[bi].size() == 1 && Boats[bi].dest_berth == -1 && Boats[bi].dest_delivery == -1)
+        { // 没有目的地的，重置
+            printf("dept %d\n", bi);
         }
     }
 
