@@ -7,6 +7,6 @@ set time=0
 
 .\SemiFinalJudge.exe -m .\maps\map1.txt ..\build\main.exe -f %time% -s %seed% -d output_map1.txt
 
-@REM .\SemiFinalJudge.exe -m .\maps\map2.txt ..\build\main.exe -f %time% -s %seed% -d output_map2.txt
+.\SemiFinalJudge.exe -m .\maps\map2.txt ..\build\main.exe -f %time% -s %seed% -d output_map2.txt
 
 .\SemiFinalJudge.exe -m .\maps\map3.txt ..\build\main.exe -f %time% -s %seed% -d output_map3.txt

@@ -787,8 +787,8 @@ void AllocateRobot()
                 }
                 if (is_link){
                     // 有连通,相同面积
-                    AreaBuying[buy_index] = AreaBuying[bei];
-                    AllocateRobotNum[buy_index] = bei; //分配数目跟bei相同
+                    AreaBuying[buy_index] = AreaBuying[pre_buy_index];
+                    AllocateRobotNum[buy_index] = pre_buy_index; //分配数目跟bei相同
                     break;
                 }
             }
@@ -842,6 +842,53 @@ void AllocateRobot()
     // for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
     //     MAX_BUY_ROBOT_NUM += AllocateRobotNum[buy_index];
     // }
+}
+
+int LinkMaxBoatBuying = 0;
+int AllocateBoatNum[MAX_BERTH_NUM] = {0};
+//根据海域连通性确定船只最少购买数
+void linkMaxBuyBoat(){
+    int buy_index = 0;
+    for (buy_index = 0; buy_index < BoatBuyingNum; buy_index++){
+        if (buy_index == 0){
+            // 0号购买点直接算一个海域
+            AllocateBoatNum[buy_index] = buy_index;
+            LinkMaxBoatBuying++;
+        }
+        else{
+            // 对其他的要看之前的购买点是否连通
+            bool is_link = false; //是否连通
+            for (int pre_buy_index = 0; pre_buy_index < buy_index; pre_buy_index++){
+                // 之前的港口
+                int bei = 0;
+                for (bei = 0; bei < BerthNum; bei++){
+                    // 根据跟港口的连通性判断
+                    if (BuyingToBerthTime[pre_buy_index][bei] > 0){
+                        // 之前连通
+                        if (BuyingToBerthTime[buy_index][bei] > 0){
+                            // 我也连通
+                            is_link = true;
+                            break;
+                        }
+                        else{
+                            continue;
+                        }
+                    }
+                }
+                if (is_link){
+                    // 有连通
+                    AllocateBoatNum[buy_index] = pre_buy_index;
+                    break;
+                }
+            }
+            if (!is_link){
+                // 无连通,新的海域
+                AllocateRobotNum[buy_index] = buy_index;
+                LinkMaxBoatBuying++;
+            }
+        }
+    }
+    MAX_BUY_BOAT_NUM = max(MAX_BUY_BOAT_NUM, LinkMaxBoatBuying);
 }
 
 struct BoatState
@@ -3263,6 +3310,10 @@ void PrintInitBuy(ofstream &out_file)
         out_file << "RobotBuying area: " << i << ' ' << AreaBuying[i] << endl;
         out_file << "RobotBuying robot: " << i << ' ' << AllocateRobotNum[i] << endl;
     }
+
+    out_file <<  endl;
+    out_file << "LinkSea: " << LinkMaxBoatBuying << endl;
+    out_file << "MaxBoatBuy: " << MAX_BUY_BOAT_NUM << endl;
 }
 
 // 输出初始购买船在哪买，去哪的信息
@@ -3332,6 +3383,7 @@ int main()
 {
     Init();
     AllocateRobot();
+    linkMaxBuyBoat();
 
 #ifdef DEBUG
     ofstream out_file = CreateFile();
