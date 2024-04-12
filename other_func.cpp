@@ -30,16 +30,17 @@ int PsbDirToBerth(int berth_id, int x, int y)
 }
 
 // 计算物品性价比，并确定最接近的港口
-double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
+double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index, int consider_rest_time)
 {
-    int goods_value;               // 物品价值
-    int goods_x, goods_y;          // 物品坐标
-    int goods_rest_time;           // 物品剩余时间
-    int to_berth_len = MAX_LENGTH; // 物品到港口距离
+    int goods_value;                   // 物品价值
+    int goods_x, goods_y;              // 物品坐标
+    double goods_rest_time_weight = 1; // 物品剩余时间
+    int to_berth_len = MAX_LENGTH;     // 物品到港口距离
     goods_value = AllGoods[goods_index].val;
     goods_x = AllGoods[goods_index].x;
     goods_y = AllGoods[goods_index].y;
-    goods_rest_time = Frame - AllGoods[goods_index].fresh;
+    if (consider_rest_time)
+        goods_rest_time_weight = 1000.0 / max(1000 - (Frame - AllGoods[goods_index].fresh), 1);
 
     // 确定最近港口
     to_berth_index = LastMinBerth(goods_x, goods_y);
@@ -60,7 +61,7 @@ double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
         to_berth_len = BerthPathLength[to_berth_index][goods_x][goods_y];
     }
 
-    double cost_value = (double)goods_value / (step_num * TO_GOODS_WEIGHT + to_berth_len);
+    double cost_value = (double)goods_value * goods_rest_time_weight / (step_num * TO_GOODS_WEIGHT + to_berth_len);
     return cost_value;
 }
 

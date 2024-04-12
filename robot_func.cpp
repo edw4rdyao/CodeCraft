@@ -18,18 +18,20 @@ bool NoGoodsRobotsCompair(int ri, int rj)
     { // 都没有要拿的物品则，id大的优先
         return ri > rj;
     }
-    int ri_rest_time = Frame - AllGoods[goodsi].fresh;
-    int rj_rest_time = Frame - AllGoods[goodsj].fresh;
-    double ri_val;
-    double rj_val;
-    if (RobotNum < MAX_BUY_ROBOT_NUM){
-        ri_val = (double)AllGoods[goodsi].val / (Robots[ri].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
-        rj_val = (double)AllGoods[goodsj].val / (Robots[rj].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
-    }
-    else{
-        ri_val = (double)AllGoods[goodsi].val / (Robots[ri].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
-        rj_val = (double)AllGoods[goodsj].val / (Robots[rj].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
-    }
+    // double ri_rest_time_weight = 1000 / max(1000 - (Frame - AllGoods[goodsi].fresh), 1);
+    // double rj_rest_time_weight = 1000 / max(1000 - (Frame - AllGoods[goodsj].fresh), 1);
+    double ri_val = 0;
+    double rj_val = 0;
+    // if (RobotNum < MAX_BUY_ROBOT_NUM)
+    // {
+    ri_val = (double)AllGoods[goodsi].val / (Robots[ri].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
+    rj_val = (double)AllGoods[goodsj].val / (Robots[rj].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
+    // }
+    // else
+    // {
+    //     double ri_val = (double)AllGoods[goodsi].val * ri_rest_time_weight / (Robots[ri].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
+    //     double rj_val = (double)AllGoods[goodsj].val * rj_rest_time_weight / (Robots[rj].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
+    // }
     if (ri_val >= rj_val)
     {
         return true;
@@ -81,22 +83,32 @@ void RobotBFSToGoods(int ri, priority_queue<Road, vector<Road>, Road::Comparator
         if (goods_id > 0)
         { // 如果现在的位置有物品，
             // 先看到了之后它是否消失
-            if (cur_path_length < (1000 - (Frame - AllGoods[goods_id].fresh))){
+            if (cur_path_length < (1000 - (Frame - AllGoods[goods_id].fresh)))
+            {
                 // 计算最近港口和性价比，并将路径加入
-                int to_berth_index = -1;
-                double value = 0;
-                if (RobotNum < MAX_BUY_ROBOT_NUM){
-                    // 若机器人没买满，优先不考虑物品刷新时间
-                    value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index);
+                if ((Robots[ri].goods_index == -1 && AllGoods[goods_id].robot_id == -1) || Robots[ri].goods_index == goods_id)
+                { // 如果自己没东西要拿，并且现在找到一个没人要拿的 或者 找到了自己要拿的
+                    int to_berth_index = -1;
+                    double value = 0;
+                    if (RobotNum < MAX_BUY_ROBOT_NUM)
+                    {
+                        // 若机器人没买满，优先不考虑物品刷新时间
+                        value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index, 0);
+                    }
+                    else
+                    {
+                        value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index, 0);
+                    }
+                    {
+                        lock_guard<mutex> lock(roads_pq_mutex); // 锁住互斥锁
+                        roads_pq.push(Road(ri, goods_id, cur_path_length, to_berth_index, goods_path[cur_pos.first][cur_pos.second], value));
+                    }
+                    ri_road_num++;
+                    if (Robots[ri].goods_index == goods_id)
+                    { // 如果这个机器人找到了自己要拿的 就不找了
+                        break;
+                    }
                 }
-                else{
-                    value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index);
-                }
-                {
-                    lock_guard<mutex> lock(roads_pq_mutex); // 锁住互斥锁
-                    roads_pq.push(Road(ri, goods_id, cur_path_length, to_berth_index, goods_path[cur_pos.first][cur_pos.second], value));
-                }
-                ri_road_num++;
             }
         }
         // 限制搜索的范围以控制时间
@@ -154,7 +166,6 @@ void RobotDispatchGreedy()
             else
             { // 没到港口（或者不是自己要去的港口），沿着图走（先看有没有找到被标记的优先港口）
                 int berth_id = LastMinBerth(Robots[ri].x, Robots[ri].y);
-                // int berth_id = -1;
                 if (berth_id == -1)
                 { // 没标记
                     Robots[ri].dir = PsbDirToBerth(Robots[ri].berth_index, Robots[ri].x, Robots[ri].y);
@@ -210,10 +221,11 @@ void RobotDispatchGreedy()
                 Robots[ri].action = 0;
                 Robots[ri].is_goods = 1;
                 Robots[ri].dir = PsbDirToBerth(Robots[ri].berth_index, Robots[ri].x, Robots[ri].y);
-                World[Robots[ri].x][Robots[ri].y] = 0;
+                WorldGoods[Robots[ri].x][Robots[ri].y] = 0;
             }
             robot_match_num++;
             robots_match[ri] = 1;
+            AllGoods[road.goods_index].robot_id = ri;
             goods_match.insert(road.goods_index);
         }
         roads_pq.pop();

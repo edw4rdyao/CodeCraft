@@ -120,15 +120,13 @@ extern int BerthNearestDelivery[MAX_BERTH_NUM];                     // 港口最
 extern int ToBerthEstimateTime[MAX_BERTH_NUM][N][N];
 extern int ToDeliveryEstimateTime[MAX_DELIVERY_NUM][N][N];
 
-//物品刷新时间占的比重，用于调参
-//extern double fresh_weight;
-
 // 记录初始购买机器人数目和船的数目，用于调参
 extern int InitBuyRobotNum;
 extern int InitBuyBoatNum;
 
 // 初始机器人购买点购买的机器人数量
 extern int InitRobotToBuy[MAX_ROBOT_BUYING_NUM];
+
 // 初始要去的港口、购买船的位置
 extern int InitBerthToGo[MAX_BOAT_BUYING_NUM];
 extern int InitBuyingToBuy[MAX_BOAT_BUYING_NUM];
@@ -161,9 +159,10 @@ extern int BoatCanNotFindRoute[MAX_BOAT_NUM];
 
 struct Goods
 {
-    int x, y; // 货物的坐标
-    int val;  // 货物的价值
-    int fresh; //货物刷新时间
+    int x, y;     // 货物的坐标
+    int val;      // 货物的价值
+    int fresh;    // 货物刷新时间
+    int robot_id; // 要拿他的机器人
 
     Goods() {}
     Goods(int x, int y, int val, int fresh)
@@ -172,6 +171,7 @@ struct Goods
         this->y = y;
         this->val = val;
         this->fresh = fresh;
+        this->robot_id = -1;
     }
 } extern AllGoods[MAX_GOODS_NUM];
 extern int NextGoodsIndex; // 下一个货物的编号
