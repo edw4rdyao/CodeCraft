@@ -11,10 +11,12 @@
 #include <thread>
 #include <mutex>
 #include <cassert>
+#include <cmath>
 #else
 #include <bits/stdc++.h>
 #include <iostream>
 #include <fstream>
+#include <cmath>
 #endif
 
 #define DEBUG
@@ -750,6 +752,9 @@ int AllocateRobotNum[MAX_ROBOT_NUM] = {0}; // 每个购买点分配的机器人�
 int AreaBuying[MAX_ROBOT_NUM] = {0}; // 每个购买点占据面积大小
 int Area = 0; // 总面积大小
 // 按购买点分配机器人
+
+int test;
+// 按地图大小计算机器人数目和分配
 void AllocateRobot()
 {
     int buy_index = 0;
@@ -795,7 +800,27 @@ void AllocateRobot()
             }
         }
     }
-    // MAX_BUY_ROBOT_NUM = (int)(Area / 1000); //机器人总数
+    double a = 1.22508984e-04;
+    double b = 4.74150604e-01;
+    double c = 10.218760209081996;
+    // MAX_BUY_ROBOT_NUM = (int)(a*(double)Area + b*(double)BerthNum + 10.218760209081996); //机器人总数
+    test = (int)ceil(a*(double)Area + b*(double)BerthNum + 10.218760209081996);
+    // // 开始分配
+    // for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
+    //     if (AllocateRobotNum[buy_index] == buy_index){
+    //         int num = 0;
+    //         for (int after_buy_index = buy_index; after_buy_index < RobotBuyingNum; after_buy_index++){
+    //             // 统计之后几个人跟我连通
+    //             if (AllocateRobotNum[after_buy_index] == buy_index){
+    //                 num++;
+    //             }
+    //         }
+    //         AllocateRobotNum[buy_index] = (int)(MAX_BUY_ROBOT_NUM*((double)(AreaBuying[buy_index])/(double)(Area))/(double)(num));
+    //     }
+    //     else{
+    //         AllocateRobotNum[buy_index] = AllocateRobotNum[AllocateRobotNum[buy_index]];
+    //     }
+    // }
     // 开始分配
     for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
         if (AllocateRobotNum[buy_index] == buy_index){
@@ -806,7 +831,7 @@ void AllocateRobot()
                     num++;
                 }
             }
-            AllocateRobotNum[buy_index] = (int)(MAX_BUY_ROBOT_NUM*((double)(AreaBuying[buy_index])/(double)(Area))/(double)(num));
+            AllocateRobotNum[buy_index] = (int)(test*((double)(AreaBuying[buy_index])/(double)(Area))/(double)(num));
         }
         else{
             AllocateRobotNum[buy_index] = AllocateRobotNum[AllocateRobotNum[buy_index]];
