@@ -105,11 +105,13 @@ int WorldGoods[N][N];           // 地图上每个位置的商品
 vector<int> BerthPath[MAX_BERTH_NUM][N][N]; // 机器人泊位到每个点的最短路径第一步的可能方向(0: 上，1: 下，2: 左，3: 右)
 int BerthPathLength[MAX_BERTH_NUM][N][N];   // 机器人泊位到每个点的最短路径长度
 
-int DeliveryToBerthTime[MAX_DELIVERY_NUM][MAX_BERTH_NUM];  // 交货点到港口的最短时间
-int BuyingToBerthTime[MAX_BOAT_BUYING_NUM][MAX_BERTH_NUM]; // 船舶购买点到港口的最短时间
-int BerthToBerthTime[MAX_BERTH_NUM][MAX_BERTH_NUM];        // 港口到港口的最短距离
-int BerthNearestBuying[MAX_BERTH_NUM];                     // 港口最近的购买点
-int BerthNearestDelivery[MAX_BERTH_NUM];                   // 港口最近的交货点
+int DeliveryToBerthTime[MAX_DELIVERY_NUM][MAX_BERTH_NUM][4]; // 交货点到港口的最短时间(每个方向)
+int BerthToDeliveryTime[MAX_BERTH_NUM][MAX_DELIVERY_NUM][4]; // 港口到交货点最短时间(每个方向)
+int BerthToDeliveryTimeMax[MAX_BERTH_NUM][MAX_DELIVERY_NUM]; // 港口到交货点最短时间(不知道方向，所以这个存的是四个方向的最大值)
+int BuyingToBerthTime[MAX_BOAT_BUYING_NUM][MAX_BERTH_NUM];   // 船舶购买点到港口的最短时间(只有正方向)
+int BerthToBerthTime[MAX_BERTH_NUM][MAX_BERTH_NUM][4];       // 港口到港口的最短时间(每个方向)
+int BerthNearestBuying[MAX_BERTH_NUM];                       // 港口最近的购买点
+int BerthNearestDelivery[MAX_BERTH_NUM];                     // 港口最近的交货点
 
 // 估算的到交货点或者港口的最短时间（用于启发函数）
 int ToBerthEstimateTime[MAX_BERTH_NUM][N][N];
@@ -697,11 +699,10 @@ void InitToBerthBFS()
     }
 }
 
-
-//计算机器人购买点占据地图大小
+// 计算机器人购买点占据地图大小
 int CalculateArea(int buy_index)
 {
-    int visted[N][N]; //判断是否bfs过
+    int visted[N][N]; // 判断是否bfs过
     memset(visted, -1, sizeof(visted));
     int area = 0;
     int buy_x = RobotBuyings[buy_index].x;
@@ -740,47 +741,57 @@ int CalculateArea(int buy_index)
 }
 
 int AllocateRobotNum[MAX_ROBOT_NUM] = {0}; // 每个购买点分配的机器人数
-int AreaBuying[MAX_ROBOT_NUM] = {0}; // 每个购买点占据面积大小
-int Area = 0; // 总面积大小
+int AreaBuying[MAX_ROBOT_NUM] = {0};       // 每个购买点占据面积大小
+int Area = 0;                              // 总面积大小
 // 按购买点分配机器人
 void AllocateRobot()
 {
     int buy_index = 0;
-    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
-        if (buy_index == 0){
+    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
+    {
+        if (buy_index == 0)
+        {
             // 0号购买点直接bfs
             AreaBuying[buy_index] = CalculateArea(buy_index);
             Area += AreaBuying[buy_index];
             AllocateRobotNum[buy_index] = buy_index;
         }
-        else{
+        else
+        {
             // 对其他的要看之前的购买点是否连通
-            bool is_link = false; //是否连通
-            for (int pre_buy_index = 0; pre_buy_index < buy_index; pre_buy_index++){
+            bool is_link = false; // 是否连通
+            for (int pre_buy_index = 0; pre_buy_index < buy_index; pre_buy_index++)
+            {
                 // 之前的港口
                 int bei = 0;
-                for (bei = 0; bei < BerthNum; bei++){
+                for (bei = 0; bei < BerthNum; bei++)
+                {
                     // 根据跟港口的连通性判断
-                    if (BerthPathLength[bei][RobotBuyings[pre_buy_index].x][RobotBuyings[pre_buy_index].y] > 0){
+                    if (BerthPathLength[bei][RobotBuyings[pre_buy_index].x][RobotBuyings[pre_buy_index].y] > 0)
+                    {
                         // 之前连通
-                        if (BerthPathLength[bei][RobotBuyings[buy_index].x][RobotBuyings[buy_index].y] > 0){
+                        if (BerthPathLength[bei][RobotBuyings[buy_index].x][RobotBuyings[buy_index].y] > 0)
+                        {
                             // 我也连通
                             is_link = true;
                             break;
                         }
-                        else{
+                        else
+                        {
                             continue;
                         }
                     }
                 }
-                if (is_link){
+                if (is_link)
+                {
                     // 有连通,相同面积
                     AreaBuying[buy_index] = AreaBuying[bei];
-                    AllocateRobotNum[buy_index] = bei; //分配数目跟bei相同
+                    AllocateRobotNum[buy_index] = bei; // 分配数目跟bei相同
                     break;
                 }
             }
-            if (!is_link){
+            if (!is_link)
+            {
                 // 无连通，重新bfs
                 AreaBuying[buy_index] = CalculateArea(buy_index);
                 Area += AreaBuying[buy_index];
@@ -790,18 +801,23 @@ void AllocateRobot()
     }
     // MAX_BUY_ROBOT_NUM = (int)(Area / 1000); //机器人总数
     // 开始分配
-    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
-        if (AllocateRobotNum[buy_index] == buy_index){
+    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
+    {
+        if (AllocateRobotNum[buy_index] == buy_index)
+        {
             int num = 0;
-            for (int after_buy_index = buy_index; after_buy_index < RobotBuyingNum; after_buy_index++){
+            for (int after_buy_index = buy_index; after_buy_index < RobotBuyingNum; after_buy_index++)
+            {
                 // 统计之后几个人跟我连通
-                if (AllocateRobotNum[after_buy_index] == buy_index){
+                if (AllocateRobotNum[after_buy_index] == buy_index)
+                {
                     num++;
                 }
             }
-            AllocateRobotNum[buy_index] = (int)(MAX_BUY_ROBOT_NUM*((double)(AreaBuying[buy_index])/(double)(Area))/(double)(num));
+            AllocateRobotNum[buy_index] = (int)(MAX_BUY_ROBOT_NUM * ((double)(AreaBuying[buy_index]) / (double)(Area)) / (double)(num));
         }
-        else{
+        else
+        {
             AllocateRobotNum[buy_index] = AllocateRobotNum[AllocateRobotNum[buy_index]];
         }
     }
@@ -1031,26 +1047,17 @@ void PercolateUp(vector<shared_ptr<BoatStateNode>> &heap, shared_ptr<BoatStateNo
 vector<int> AStarSearchNodeNum; // 每次Astar搜索的节点数
 
 // 返回一个位置到另一个位置最短时间，-1表示不可达
-int PositionToPositionAStar(int sx, int sy, int d_type, int d_id)
+int PositionToPositionAStar(int sx, int sy, int sdir, int d_type, int d_id)
 {
     int search_node_num = 0;
-    int dx = d_type ? Berths[d_id].x : Deliveries[d_id].x;
-    int dy = d_type ? Berths[d_id].y : Deliveries[d_id].y;
-    // 首先初始化船起点的状态（核心点在起点，找一个方向合法的状态），如果没有合法的状态则返回-1
-    int sdir = -1;
-    for (int i = 0; i < 4; i++)
-    {
-        if (JudgeBoatState(sx, sy, i))
-        {
-            sdir = i;
-            break;
-        }
-    }
-    if (sdir == -1)
+    // 如果状态不合法则返回-1
+    if (!JudgeBoatState(sx, sy, sdir))
     {
         AStarSearchNodeNum.push_back(search_node_num);
         return -1;
     }
+    int dx = d_type ? Berths[d_id].x : Deliveries[d_id].x;
+    int dy = d_type ? Berths[d_id].y : Deliveries[d_id].y;
     shared_ptr<BoatStateNode> start_state_node = make_shared<BoatStateNode>(
         sx, sy, sdir, -1, false, 0, GetHValue(sx, sy, sdir, -1, d_type, d_id), 1, nullptr);
 
@@ -1147,30 +1154,72 @@ int PositionToPositionAStar(int sx, int sy, int d_type, int d_id)
     return -1;
 }
 
-// 记录交货点到泊位之间的最短时间
+// 记录从交货点到泊位的最短时间
 void InitDeliveryToBerth()
 {
-    // 初始化交货点到泊位之间的最短时间 -1为不可达
+    // 初始化从交货点到泊位的最短时间 -1为不可达
     memset(DeliveryToBerthTime, -1, sizeof(DeliveryToBerthTime));
-    // 初始化每个泊位的最近交货点
-    memset(BerthNearestDelivery, -1, sizeof(BerthNearestDelivery));
     for (int di = 0; di < DeliveryNum; di++)
     { // 对每一个交货点
         for (int bi = 0; bi < BerthNum; bi++)
-        { // 对每一个泊位,A星计算时间
-            if (ToBerthEstimateTime[bi][Deliveries[di].x][Deliveries[di].y] == -1)
-            { // 如果不可达
-                DeliveryToBerthTime[di][bi] = -1;
-                BerthNearestDelivery[bi] = -1;
-            }
-            else
-            {
-                DeliveryToBerthTime[di][bi] = PositionToPositionAStar(Deliveries[di].x, Deliveries[di].y, 1, bi);
-                // 如果之前没有找到或者找到的时间更短
-                if (BerthNearestDelivery[bi] == -1 || DeliveryToBerthTime[di][bi] < DeliveryToBerthTime[BerthNearestDelivery[bi]][bi])
-                {
-                    BerthNearestDelivery[bi] = di;
+        { // 对每一个泊位
+            for (int dir = 0; dir < 4; dir++)
+            { // 对每个方向
+                if (ToBerthEstimateTime[bi][Deliveries[di].x][Deliveries[di].y] == -1)
+                { // 如果单点都不可达
+                    DeliveryToBerthTime[di][bi][dir] = -1;
                 }
+                else
+                { // 单点可达，A*寻路
+                    DeliveryToBerthTime[di][bi][dir] = PositionToPositionAStar(Deliveries[di].x, Deliveries[di].y, dir, 1, bi);
+                }
+            }
+        }
+    }
+}
+
+// 记录从泊位到交货点的最短时间
+void InitBerthToDelivery()
+{
+    // 初始化从泊位到交货点的最短时间 -1为不可达
+    memset(BerthToDeliveryTime, -1, sizeof(BerthToDeliveryTime));
+    // 初始化从泊位到交货点的每个方向最短时间的最大时间
+    memset(BerthToDeliveryTimeMax, -1, sizeof(BerthToDeliveryTimeMax));
+    for (int bi = 0; bi < BerthNum; bi++)
+    { // 对每一个泊位
+        for (int di = 0; di < DeliveryNum; di++)
+        { // 对每一个交货点
+            for (int dir = 0; dir < 4; dir++)
+            { // 对每个方向
+                if (ToBerthEstimateTime[bi][Deliveries[di].x][Deliveries[di].y] == -1)
+                { // 如果单点都不可达
+                    BerthToDeliveryTime[bi][di][dir] = -1;
+                }
+                else
+                { // 单点可达，A*寻路
+                    BerthToDeliveryTime[bi][di][dir] = PositionToPositionAStar(Berths[bi].x, Berths[bi].y, dir, 0, di);
+                    if (BerthToDeliveryTime[bi][di][dir] > BerthToDeliveryTimeMax[bi][di])
+                    { // 记录从该泊位到交货点最短时间的最大值
+                        BerthToDeliveryTimeMax[bi][di] = BerthToDeliveryTime[bi][di][dir];
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 记录每个泊位对应的最近交货点
+void InitBerthNearestDelivery()
+{
+    // 初始化每个泊位的最近交货点
+    memset(BerthNearestDelivery, -1, sizeof(BerthNearestDelivery));
+    for (int bi = 0; bi < BerthNum; bi++)
+    { // 对每一个泊位
+        for (int di = 0; di < DeliveryNum; di++)
+        { // 对每一个交货点
+            if (BerthNearestDelivery[bi] == -1 || BerthToDeliveryTimeMax[bi][di] < BerthToDeliveryTimeMax[bi][BerthNearestDelivery[bi]])
+            {
+                BerthNearestDelivery[bi] = di;
             }
         }
     }
@@ -1186,15 +1235,15 @@ void InitBuyingToBerth()
     for (int bbi = 0; bbi < BoatBuyingNum; bbi++)
     { // 对每一个轮船购买点
         for (int bi = 0; bi < BerthNum; bi++)
-        { // 对每一个泊位，A星计算时间
+        { // 对每一个泊位
             if (ToBerthEstimateTime[bi][BoatBuyings[bbi].x][BoatBuyings[bbi].y] == -1)
-            { // 如果不可达
+            { // 如果单点都不可达
                 BuyingToBerthTime[bbi][bi] = -1;
                 BerthNearestBuying[bi] = -1;
             }
             else
-            {
-                BuyingToBerthTime[bbi][bi] = PositionToPositionAStar(BoatBuyings[bbi].x, BoatBuyings[bbi].y, 1, bi);
+            { // 方向只考虑向右正方向
+                BuyingToBerthTime[bbi][bi] = PositionToPositionAStar(BoatBuyings[bbi].x, BoatBuyings[bbi].y, 0, 1, bi);
                 // 如果之前没有找到或者找到的时间更短
                 if (BerthNearestBuying[bi] == -1 || BuyingToBerthTime[bbi][bi] < BuyingToBerthTime[BerthNearestBuying[bi]][bi])
                 {
@@ -1209,20 +1258,22 @@ void InitBerthToBerth()
 {
     // 初始化泊位到泊位之间的最短时间 -1为不可达
     memset(BerthToBerthTime, -1, sizeof(BerthToBerthTime));
-
     for (int bi = 0; bi < BerthNum; bi++)
     { // 对每一个港口
         for (int bj = 0; bj < BerthNum; bj++)
         { // 对另一个港口作为目的地
             if (bi != bj)
             {
-                if (ToBerthEstimateTime[bj][Berths[bi].x][Berths[bi].y] == -1)
-                { // 该港口不可达
-                    BerthToBerthTime[bi][bj] = -1;
-                }
-                else
-                {
-                    BerthToBerthTime[bi][bj] = PositionToPositionAStar(Berths[bi].x, Berths[bi].y, 1, bj);
+                for (int dir = 0; dir < 4; dir++)
+                { // 对每一个方向
+                    if (ToBerthEstimateTime[bj][Berths[bi].x][Berths[bi].y] == -1)
+                    { // 如果单点都不可达
+                        BerthToBerthTime[bi][bj][dir] = -1;
+                    }
+                    else
+                    {
+                        BerthToBerthTime[bi][bj][dir] = PositionToPositionAStar(Berths[bi].x, Berths[bi].y, dir, 1, bj);
+                    }
                 }
             }
         }
@@ -1311,6 +1362,9 @@ void Init()
     InitToBerthEstimateTimeDijkstra();
     InitToDeliveryEstimateTimeDijkstra();
     InitDeliveryToBerth();
+    InitBerthToDelivery();
+    InitBerthToBerth();
+    InitBerthNearestDelivery();
     InitBuyingToBerth();
     InitRobotAndBoatBuy();
     // 输出OK
@@ -1958,7 +2012,8 @@ void AvoidCollision()
                         if (Robots[rj].dir < 0 && Robots[rj].x == nx_ri && Robots[rj].y == ny_ri)
                         {
                             // 若不动的在主干道
-                            if (IsOnMainRoad(Robots[rj].x,Robots[rj].y)){
+                            if (IsOnMainRoad(Robots[rj].x, Robots[rj].y))
+                            {
                                 continue;
                             }
                             is_collision = true;
@@ -1995,7 +2050,8 @@ void AvoidCollision()
                             {
                                 is_collision = true;
                                 // 若他下一步要进我主干道
-                                if (IsOnMainRoad(nx_rj, ny_rj)){
+                                if (IsOnMainRoad(nx_rj, ny_rj))
+                                {
                                     Robots[ri].dir = -1;
                                     break;
                                 }
@@ -2100,13 +2156,11 @@ int FindBestBerthFromDelivery(int boat_id, int delivery_id)
     double max_value = -1;
     for (int bi = 0; bi < BerthNum; bi++)
     { // 对每个没有船要去的港口，并且该港口可达
-        if (Berths[bi].boat_id == -1 && DeliveryToBerthTime[delivery_id][boat_id] != -1)
+        if (Berths[bi].boat_id == -1 && DeliveryToBerthTime[delivery_id][boat_id][Boats[boat_id].dir] != -1)
         {
             // 计算性价比（过去装完直接去交货点）
             double goods_value = 0;
-            int transport_time = DeliveryToBerthTime[delivery_id][bi] + DeliveryToBerthTime[BerthNearestDelivery[bi]][bi];
-            if (MAX_FRAME - Frame < transport_time + 15)
-                continue;
+            int transport_time = DeliveryToBerthTime[delivery_id][bi][Boats[boat_id].dir] + BerthToDeliveryTimeMax[bi][BerthNearestDelivery[bi]];
             queue<int> tmp = Berths[bi].goods_queue;
             int to_load_goods = min((int)tmp.size(), BoatCapacity);
             for (int j = 0; j < to_load_goods; j++)
@@ -2114,6 +2168,9 @@ int FindBestBerthFromDelivery(int boat_id, int delivery_id)
                 goods_value += AllGoods[tmp.front()].val;
                 tmp.pop();
             }
+            transport_time += (to_load_goods / Berths[bi].velocity);
+            if (MAX_FRAME - Frame < transport_time)
+                continue;
             goods_value /= transport_time;
             if (goods_value > max_value)
             {
@@ -2132,13 +2189,11 @@ int FindBestBerthOrGoFromBerth(int boat_id)
     double max_value = -1;
     for (int bi = 0; bi < BerthNum; bi++)
     { // 对每个没有船要去的其他港口，并且该港口可达
-        if (bi != Boats[boat_id].dest_berth && Berths[bi].boat_id == -1 && BerthToBerthTime[Boats[boat_id].dest_berth][bi] != -1)
+        if (bi != Boats[boat_id].dest_berth && Berths[bi].boat_id == -1 && BerthToBerthTime[Boats[boat_id].dest_berth][bi][Boats[boat_id].dir] != -1)
         {
             // 计算性价比
             double goods_value = Boats[boat_id].goods_value;
-            int transport_time = BerthToBerthTime[Boats[boat_id].dest_berth][bi] + DeliveryToBerthTime[BerthNearestDelivery[bi]][bi];
-            if (MAX_FRAME - Frame < transport_time + 15)
-                continue;
+            int transport_time = BerthToBerthTime[Boats[boat_id].dest_berth][bi][Boats[boat_id].dir] + BerthToDeliveryTimeMax[bi][BerthNearestDelivery[bi]];
             queue<int> tmp = Berths[bi].goods_queue;
             int to_load_goods = min((int)tmp.size(), BoatCapacity - Boats[boat_id].goods_num); // 还能装的货（囤的货和还能装的货取最小值）
             for (int j = 0; j < to_load_goods; j++)
@@ -2146,6 +2201,9 @@ int FindBestBerthOrGoFromBerth(int boat_id)
                 goods_value += AllGoods[tmp.front()].val;
                 tmp.pop();
             }
+            transport_time += (to_load_goods / Berths[bi].velocity);
+            if (MAX_FRAME - Frame < transport_time)
+                continue;
             goods_value /= transport_time;
             if (goods_value > max_value)
             {
@@ -2155,7 +2213,7 @@ int FindBestBerthOrGoFromBerth(int boat_id)
         }
     }
     // 再对比一下直接回交货点的性价比
-    if ((double)Boats[boat_id].goods_value / DeliveryToBerthTime[BerthNearestDelivery[Boats[boat_id].dest_berth]][Boats[boat_id].dest_berth] > max_value)
+    if ((double)Boats[boat_id].goods_value / BerthToDeliveryTime[Boats[boat_id].dest_berth][BerthNearestDelivery[Boats[boat_id].dest_berth]][Boats[boat_id].dir] > max_value)
     {
         return -2;
     }
@@ -2173,7 +2231,7 @@ int FindBestBerthFromBuying(int boat_id, int boat_buying_id)
         {
             // 计算性价比（过去装完直接去交货点）
             double goods_value = 0;
-            int transport_time = BuyingToBerthTime[boat_buying_id][bi] + DeliveryToBerthTime[BerthNearestDelivery[bi]][bi];
+            int transport_time = BuyingToBerthTime[boat_buying_id][bi] + BerthToDeliveryTimeMax[bi][BerthNearestDelivery[bi]];
             queue<int> tmp = Berths[bi].goods_queue;
             int to_load_goods = min((int)tmp.size(), BoatCapacity);
             for (int j = 0; j < to_load_goods; j++)
@@ -2181,6 +2239,7 @@ int FindBestBerthFromBuying(int boat_id, int boat_buying_id)
                 goods_value += AllGoods[tmp.front()].val;
                 tmp.pop();
             }
+            transport_time += (to_load_goods / Berths[bi].velocity);
             goods_value /= transport_time;
             if (goods_value > max_value)
             {
@@ -2336,8 +2395,21 @@ int BoatToPositionAStar(int bi, int d_type, int d_id)
 }
 
 // 船滚去交货点
-void RunToDeliveryGun(int bi, int best_delivery)
-{                                              // 船
+void RunToDeliveryGun(int bi)
+{ // 船
+    // 根据当前状态找一个近的交货点
+    int best_delivery = -1;
+    int min_to_delivery_time = -1;
+    for (int di = 0; di < DeliveryNum; di++)
+    {
+        if (BerthToDeliveryTime[Boats[bi].dest_berth][di][Boats[bi].dir] == -1)
+            continue;
+        if (min_to_delivery_time = -1 || BerthToDeliveryTime[Boats[bi].dest_berth][di][Boats[bi].dir] < min_to_delivery_time)
+        { // 该交货点可达
+            min_to_delivery_time = BerthToDeliveryTime[Boats[bi].dest_berth][di][Boats[bi].dir];
+            best_delivery = di;
+        }
+    }
     Berths[Boats[bi].dest_berth].focus = 0;    // 清除港口聚焦
     Berths[Boats[bi].dest_berth].boat_id = -1; // 清除港口的船
     Boats[bi].dest_delivery = best_delivery;   // 加入交货点目的地
@@ -2375,9 +2447,9 @@ void BoatDispatch()
             //         best_dilivery = di;
             //     }
             // }
-            if (Boats[bi].goods_num >= BoatCapacity || MAX_FRAME - Frame < (DeliveryToBerthTime[BerthNearestDelivery[Boats[bi].dest_berth]][Boats[bi].dest_berth] + 10))
+            if (Boats[bi].goods_num >= BoatCapacity || MAX_FRAME - Frame <= (BerthToDeliveryTime[Boats[bi].dest_berth][BerthNearestDelivery[Boats[bi].dest_berth]][Boats[bi].dir] + 4))
             { // 装满或者不够时间回交货点 就滚
-                RunToDeliveryGun(bi, BerthNearestDelivery[Boats[bi].dest_berth]);
+                RunToDeliveryGun(bi);
                 // 清空路径并且寻路（实际上靠泊的时候路径就一定清空了）
                 is_need_astar[bi] = true;
             }
@@ -2388,7 +2460,7 @@ void BoatDispatch()
                     int best_berth = FindBestBerthOrGoFromBerth(bi);
                     if (best_berth == -2)
                     { // 直接滚
-                        RunToDeliveryGun(bi, BerthNearestDelivery[Boats[bi].dest_berth]);
+                        RunToDeliveryGun(bi);
                         is_need_astar[bi] = true;
                     }
                     else if (best_berth != -1)
@@ -2852,7 +2924,7 @@ void BuyBoatsCxh()
                     total_goods_value += AllGoods[tmp.front()].val;
                     tmp.pop();
                 }
-                double value_distance = (double)total_goods_value / (double)(DeliveryToBerthTime[BerthNearestDelivery[be]][be] + BuyingToBerthTime[BerthNearestBuying[be]][be]);
+                double value_distance = (double)total_goods_value / (double)(BuyingToBerthTime[BerthNearestBuying[be]][be] + BerthToDeliveryTimeMax[be][BerthNearestDelivery[be]]);
                 if (value_distance > max_goods_value_distance)
                 {
                     max_goods_value_distance = total_goods_value;
@@ -2977,7 +3049,7 @@ int BuyBoatsXmc()
                 }
                 double value_distance;
                 if ((value_distance = (double)total_goods_value /
-                                      (DeliveryToBerthTime[BerthNearestDelivery[be]][be] + BuyingToBerthTime[BerthNearestBuying[be]][be])) > max_goods_value_distance)
+                                      (BuyingToBerthTime[BerthNearestBuying[be]][be] + BerthToDeliveryTimeMax[be][BerthNearestDelivery[be]])) > max_goods_value_distance)
                 {
                     max_goods_value_distance = value_distance;
                     berth_index_to_go = be;
@@ -3144,8 +3216,45 @@ void PrintDeliveryToBerthTime(ofstream &out_file)
     {
         for (int bi = 0; bi < BerthNum; bi++)
         {
-            out_file << "Delivery " << di << " to Berth " << bi << " Time: " << left << setw(6) << DeliveryToBerthTime[di][bi];
-            out_file << " Search Node:" << AStarSearchNodeNum[di * DeliveryNum + bi] << endl;
+            for (int dir = 0; dir < 4; dir++)
+            {
+                out_file << "Delivery " << di << " to Berth " << bi << " Dir: " << dir << " Time: " << left << setw(6) << DeliveryToBerthTime[di][bi][dir] << endl;
+                // out_file << " Search Node:" << AStarSearchNodeNum[di * DeliveryNum + bi] << endl;
+            }
+        }
+    }
+}
+
+// 输出港口每个方向到每个交货点时间
+void PrintBerthToDeliveryTime(ofstream &out_file)
+{
+    out_file << "-----------------------------------Berth To Delivery Time-------------------------------------" << endl;
+    for (int di = 0; di < DeliveryNum; di++)
+    {
+        for (int bi = 0; bi < BerthNum; bi++)
+        {
+            for (int dir = 0; dir < 4; dir++)
+            {
+                out_file << "Berth " << bi << " to Delivery " << di << " Dir: " << dir << " Time: " << left << setw(6) << BerthToDeliveryTime[bi][di][dir] << endl;
+                // out_file << " Search Node:" << AStarSearchNodeNum[di * DeliveryNum + bi] << endl;
+            }
+            out_file << "Berth " << bi << " to Delivery " << di << " Max Time: " << left << setw(6) << BerthToDeliveryTimeMax[bi][di] << endl;
+        }
+    }
+}
+
+// 输出港口每个方向到每个交货点时间
+void PrintBerthToBerthTime(ofstream &out_file)
+{
+    out_file << "-----------------------------------Berth To Berth Time----------------------------------------" << endl;
+    for (int bi = 0; bi < BerthNum; bi++)
+    {
+        for (int bj = 0; bj < BerthNum; bj++)
+        {
+            for (int dir = 0; dir < 4; dir++)
+            {
+                out_file << "Berth " << bi << " to Berth " << bj << " Dir: " << dir << " Time: " << left << setw(6) << BerthToBerthTime[bi][bj][dir] << endl;
+            }
         }
     }
 }
@@ -3158,8 +3267,8 @@ void PrintBuyingToBerthTime(ofstream &out_file)
     {
         for (int bi = 0; bi < BerthNum; bi++)
         {
-            out_file << "Buying   " << bbi << " to Berth " << bi << " Time: " << left << setw(6) << BuyingToBerthTime[bbi][bi];
-            out_file << " Search Node:" << AStarSearchNodeNum[DeliveryNum * BerthNum + bbi * BoatBuyingNum + bi] << endl;
+            out_file << "Buying   " << bbi << " to Berth " << bi << " Time: " << left << setw(6) << BuyingToBerthTime[bbi][bi] << endl;
+            // out_file << " Search Node:" << AStarSearchNodeNum[DeliveryNum * BerthNum + bbi * BoatBuyingNum + bi] << endl;
         }
     }
 }
@@ -3202,9 +3311,10 @@ void PrintInitBuy(ofstream &out_file)
         out_file << "Init Boat Buying: " << InitBuyingToBuy[i] << endl;
     }
 
-    out_file <<  endl;
+    out_file << endl;
     out_file << "AREA: " << Area << endl;
-    for (int i = 0; i < RobotBuyingNum; i++){
+    for (int i = 0; i < RobotBuyingNum; i++)
+    {
         out_file << "RobotBuying area: " << i << ' ' << AreaBuying[i] << endl;
         out_file << "RobotBuying robot: " << i << ' ' << AllocateRobotNum[i] << endl;
     }
@@ -3229,6 +3339,8 @@ void Print(ofstream &out_file, int interval)
     {
         // PrintWorldInfo(out_file);
         PrintDeliveryToBerthTime(out_file);
+        PrintBerthToDeliveryTime(out_file);
+        PrintBerthToBerthTime(out_file);
         PrintBuyingToBerthTime(out_file);
         PrintNearestBuyingAndDelivery(out_file);
         PrintBoatCapacity(out_file);
