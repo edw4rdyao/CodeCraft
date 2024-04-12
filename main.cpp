@@ -101,18 +101,26 @@ int BerthNearestDelivery[MAX_BERTH_NUM];                     // 港口最近的�
 int ToBerthEstimateTime[MAX_BERTH_NUM][N][N];
 int ToDeliveryEstimateTime[MAX_DELIVERY_NUM][N][N];
 
-//物品刷新时间占的比重，用于调参
-//double fresh_weight = 0.08;
-
 // 记录初始购买机器人数目和船的数目，用于调参
 int InitBuyRobotNum = 8;
 int InitBuyBoatNum = (25000 - 2000 * InitBuyRobotNum) / 8000;
 
 // 初始机器人购买点购买的机器人数量
 int InitRobotToBuy[MAX_ROBOT_BUYING_NUM];
+
 // 初始要去的港口、购买船的位置
 int InitBerthToGo[MAX_BOAT_BUYING_NUM];
 int InitBuyingToBuy[MAX_BOAT_BUYING_NUM];
+
+int AllocateRobotNum[MAX_ROBOT_NUM] = {0}; // 每个购买点分配的机器人数
+int AreaBuying[MAX_ROBOT_NUM] = {0};       // 每个购买点占据面积大小
+int Area = 0;                              // 总面积大小
+
+int test;
+int LinkMaxBoatBuying = 0;
+int AllocateBoatNum[MAX_BERTH_NUM] = {0};
+
+vector<int> AStarSearchNodeNum; // 每次Astar搜索的节点数
 
 // 保存每艘船的固定航线
 vector<BoatRouteState> BoatRoutes[MAX_BOAT_NUM];
@@ -133,17 +141,6 @@ RobotBuying RobotBuyings[MAX_ROBOT_BUYING_NUM];
 BoatBuying BoatBuyings[MAX_BOAT_BUYING_NUM];
 
 Delivery Deliveries[MAX_DELIVERY_NUM];
-
-int AllocateRobotNum[MAX_ROBOT_NUM] = {0}; // 每个购买点分配的机器人数
-int AreaBuying[MAX_ROBOT_NUM] = {0};       // 每个购买点占据面积大小
-int Area = 0;                              // 总面积大小
-
-int test;
-
-int LinkMaxBoatBuying = 0;
-int AllocateBoatNum[MAX_BERTH_NUM] = {0};
-
-vector<int> AStarSearchNodeNum; // 每次Astar搜索的节点数
 
 
 // 更新每一帧输入信息
@@ -194,14 +191,12 @@ void Input()
     {
         int id, goods_num, x, y, dir, status;
         scanf("%d%d%d%d%d%d\n", &id, &goods_num, &x, &y, &dir, &status);
-
         Boats[id].goods_num = goods_num;
         Boats[id].x = x;
         Boats[id].y = y;
         Boats[id].dir = dir;
         Boats[id].status = status;
     }
-
     // 读取ok
     char ok[100];
     scanf("%s", ok);
@@ -231,6 +226,8 @@ void Buy()
     }
 }
 
+
+// main函数
 int main()
 {
     Init();
