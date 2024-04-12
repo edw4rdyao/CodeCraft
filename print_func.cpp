@@ -189,7 +189,7 @@ void PrintInitBuy(ofstream &out_file)
         out_file << "RobotBuying robot: " << i << ' ' << AllocateRobotNum[i] << endl;
     }
 
-    out_file <<  endl;
+    out_file << "MAX Robot: " << test << endl;
     out_file << "LinkSea: " << LinkMaxBoatBuying << endl;
     out_file << "MaxBoatBuy: " << MAX_BUY_BOAT_NUM << endl;
 }

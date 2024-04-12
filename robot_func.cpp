@@ -767,7 +767,6 @@ int BuyRobotsXmc()
         {                                    // 要买
             int goods_stack = MAX_GOODS_NUM; // 货物堆积最少处的最近位置买
             int robot_buy_index;
-
             // 对每个港口
             for (int bi = 0; bi < BerthNum; bi++)
             {
@@ -789,6 +788,11 @@ int BuyRobotsXmc()
                         }
                         else
                         {
+                            if (AllocateRobotNum[rbi] <= 0)
+                            {
+                                // 不该在该港口买了
+                                continue;
+                            }
                             if (goods_stack >= Berths[bi].goods_queue.size() && length >= BerthPathLength[bi][x][y])
                             {
                                 goods_stack = (int)Berths[bi].goods_queue.size();
@@ -799,6 +803,7 @@ int BuyRobotsXmc()
                     }
                 }
             }
+            AllocateRobotNum[robot_buy_index]--;
             BuyARobot(robot_buy_index);
             buy = 1;
         }

@@ -54,9 +54,10 @@ inline const double TO_GOODS_WEIGHT = 1.0;
 inline const double H_VALUE_WEIGHT = 2.0;
 
 // 最大购买机器人和船的数量，购买机器人和船的价格
-inline const int MAX_BUY_ROBOT_NUM = 15;
-inline const int MAX_BUY_BOAT_NUM_ARRAY[10] = {0, 1, 1, 1, 1, 2, 2, 2, 3, 3};
+extern int MAX_BUY_ROBOT_NUM;
 extern int MAX_BUY_BOAT_NUM;
+
+inline const int MAX_BUY_BOAT_NUM_ARRAY[10] = {0, 1, 1, 1, 1, 2, 2, 2, 3, 3};
 inline const int ROBOT_BUY_MONEY = 2000;
 inline const int BOAT_BUY_MONEY = 8000;
 
