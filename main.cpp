@@ -758,6 +758,7 @@ int test;
 // 按地图大小计算机器人数目和分配
 void AllocateRobot()
 {
+    int robot_buy_link_to_berth[MAX_BUY_ROBOT_NUM] = {0}; // 统计有多少港口跟购买点连通
     int buy_index = 0;
     for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
     {
@@ -815,7 +816,7 @@ void AllocateRobot()
     double b = 4.74150604e-01;
     double c = 10.218760209081996;
     // MAX_BUY_ROBOT_NUM = (int)(a*(double)Area + b*(double)BerthNum + 10.218760209081996); //机器人总数
-    test = (int)ceil(a * (double)Area + b * (double)BerthNum + 10.218760209081996);
+    MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)BerthNum + c);
     // // 开始分配
     // for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
     //     if (AllocateRobotNum[buy_index] == buy_index){
@@ -832,6 +833,34 @@ void AllocateRobot()
     //         AllocateRobotNum[buy_index] = AllocateRobotNum[AllocateRobotNum[buy_index]];
     //     }
     // }
+    // 统计连通的港口数
+    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
+    {
+        if (AllocateRobotNum[buy_index] == buy_index)
+        {
+            for (int bei = 0; bei < BerthNum; bei++)
+            {
+                if (BerthPathLength[bei][RobotBuyings[buy_index].x][RobotBuyings[buy_index].y] > 0)
+                {
+                    robot_buy_link_to_berth[buy_index]++;
+                }
+            }
+        }
+        else
+        {
+            robot_buy_link_to_berth[buy_index] = robot_buy_link_to_berth[AllocateRobotNum[buy_index]];
+        }
+    }
+
+    int rest_robot[MAX_BUY_ROBOT_NUM] = {0}; // 分配的余数
+    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
+    {
+        if (AllocateRobotNum[buy_index] == buy_index)
+        {
+            rest_robot[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)robot_buy_link_to_berth[buy_index] + c));
+        }
+    }
+
     // 开始分配
     for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
     {
@@ -846,18 +875,21 @@ void AllocateRobot()
                     num++;
                 }
             }
-            AllocateRobotNum[buy_index] = (int)(test * ((double)(AreaBuying[buy_index]) / (double)(Area)) / (double)(num));
+            AllocateRobotNum[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)robot_buy_link_to_berth[buy_index] + c) / (double)(num));
+            rest_robot[buy_index] -= AllocateRobotNum[buy_index] * num;
         }
         else
         {
+            int rest = 0; // 余数
+            if (rest_robot[AllocateRobotNum[buy_index]] > 0)
+            {
+                rest = rest_robot[AllocateRobotNum[buy_index]];
+                rest_robot[AllocateRobotNum[buy_index]] = 0;
+            }
             AllocateRobotNum[buy_index] = AllocateRobotNum[AllocateRobotNum[buy_index]];
+            AllocateRobotNum[buy_index] += rest;
         }
     }
-
-    // MAX_BUY_ROBOT_NUM = 0;
-    // for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
-    //     MAX_BUY_ROBOT_NUM += AllocateRobotNum[buy_index];
-    // }
 }
 
 int LinkMaxBoatBuying = 0;
@@ -3113,6 +3145,11 @@ int BuyRobotsXmc()
                         }
                         else
                         {
+                            if (AllocateRobotNum[rbi] <= 0)
+                            {
+                                // 不该在该港口买了
+                                continue;
+                            }
                             if (goods_stack >= Berths[bi].goods_queue.size() && length >= BerthPathLength[bi][x][y])
                             {
                                 goods_stack = (int)Berths[bi].goods_queue.size();
@@ -3123,6 +3160,7 @@ int BuyRobotsXmc()
                     }
                 }
             }
+            AllocateRobotNum[robot_buy_index]--;
             BuyARobot(robot_buy_index);
             buy = 1;
         }
@@ -3441,6 +3479,7 @@ void PrintInitBuy(ofstream &out_file)
         out_file << "RobotBuying area: " << i << ' ' << AreaBuying[i] << endl;
         out_file << "RobotBuying robot: " << i << ' ' << AllocateRobotNum[i] << endl;
     }
+    out_file << "MAX Robot: " << test << endl;
 
     out_file << endl;
     out_file << "LinkSea: " << LinkMaxBoatBuying << endl;
