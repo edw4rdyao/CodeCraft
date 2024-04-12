@@ -102,7 +102,7 @@ int ToBerthEstimateTime[MAX_BERTH_NUM][N][N];
 int ToDeliveryEstimateTime[MAX_DELIVERY_NUM][N][N];
 
 //物品刷新时间占的比重，用于调参
-double fresh_weight = 0.08;
+//double fresh_weight = 0.08;
 
 // 记录初始购买机器人数目和船的数目，用于调参
 int InitBuyRobotNum = 8;

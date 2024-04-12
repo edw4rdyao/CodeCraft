@@ -20,17 +20,15 @@ bool NoGoodsRobotsCompair(int ri, int rj)
     }
     int ri_rest_time = Frame - AllGoods[goodsi].fresh;
     int rj_rest_time = Frame - AllGoods[goodsj].fresh;
-    double ri_val = 0;
-    double rj_val = 0;
+    double ri_val;
+    double rj_val;
     if (RobotNum < MAX_BUY_ROBOT_NUM){
-        double ri_val = (double)AllGoods[goodsi].val / (Robots[ri].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
-        double rj_val = (double)AllGoods[goodsj].val / (Robots[rj].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
-
+        ri_val = (double)AllGoods[goodsi].val / (Robots[ri].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
+        rj_val = (double)AllGoods[goodsj].val / (Robots[rj].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
     }
     else{
-        double ri_val = ((double)AllGoods[goodsi].val + fresh_weight*(double)ri_rest_time) / (Robots[ri].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
-        double rj_val = ((double)AllGoods[goodsj].val + fresh_weight*(double)rj_rest_time) / (Robots[rj].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
-
+        ri_val = (double)AllGoods[goodsi].val / (Robots[ri].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
+        rj_val = (double)AllGoods[goodsj].val / (Robots[rj].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
     }
     if (ri_val >= rj_val)
     {
@@ -89,10 +87,10 @@ void RobotBFSToGoods(int ri, priority_queue<Road, vector<Road>, Road::Comparator
                 double value = 0;
                 if (RobotNum < MAX_BUY_ROBOT_NUM){
                     // 若机器人没买满，优先不考虑物品刷新时间
-                    value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index, 0);
+                    value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index);
                 }
                 else{
-                    value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index, fresh_weight);
+                    value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index);
                 }
                 {
                     lock_guard<mutex> lock(roads_pq_mutex); // 锁住互斥锁

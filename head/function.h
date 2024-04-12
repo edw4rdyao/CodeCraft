@@ -48,7 +48,7 @@ int LastMinBerth(int x, int y);
 
 int PsbDirToBerth(int berth_id, int x, int y);
 
-double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index, double rest_time_weight);
+double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index);
 
 vector<int> GetRandomDirection();
 

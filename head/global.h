@@ -48,14 +48,14 @@ inline const int MAX_LENGTH = 40000;
 extern int GoodsValue;
 
 // 可以修改的参数 每个机器人BFS找的最多路径与长度 离货物距离的比重
-inline const int MAX_ROAD_NUM = 10;
-inline const int MAX_ROAD_LEN = 350;
-inline const double TO_GOODS_WEIGHT = 3.0;
+inline const int MAX_ROAD_NUM = 20;
+inline const int MAX_ROAD_LEN = 400;
+inline const double TO_GOODS_WEIGHT = 1.0;
 inline const double H_VALUE_WEIGHT = 2.0;
 
 // 最大购买机器人和船的数量，购买机器人和船的价格
 inline const int MAX_BUY_ROBOT_NUM = 15;
-inline const int MAX_BUY_BOAT_NUM_ARRAY[10] = {0, 1, 1, 1, 1, 2, 2, 3, 3, 3};
+inline const int MAX_BUY_BOAT_NUM_ARRAY[10] = {0, 1, 1, 1, 1, 2, 2, 2, 3, 3};
 extern int MAX_BUY_BOAT_NUM;
 inline const int ROBOT_BUY_MONEY = 2000;
 inline const int BOAT_BUY_MONEY = 8000;
@@ -121,7 +121,7 @@ extern int ToBerthEstimateTime[MAX_BERTH_NUM][N][N];
 extern int ToDeliveryEstimateTime[MAX_DELIVERY_NUM][N][N];
 
 //物品刷新时间占的比重，用于调参
-extern double fresh_weight;
+//extern double fresh_weight;
 
 // 记录初始购买机器人数目和船的数目，用于调参
 extern int InitBuyRobotNum;

@@ -30,7 +30,7 @@ int PsbDirToBerth(int berth_id, int x, int y)
 }
 
 // 计算物品性价比，并确定最接近的港口
-double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index, double rest_time_weight)
+double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index)
 {
     int goods_value;               // 物品价值
     int goods_x, goods_y;          // 物品坐标
@@ -60,7 +60,7 @@ double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index, d
         to_berth_len = BerthPathLength[to_berth_index][goods_x][goods_y];
     }
 
-    double cost_value = ((double)goods_value + rest_time_weight*(double)goods_rest_time) / (step_num * TO_GOODS_WEIGHT + to_berth_len);
+    double cost_value = (double)goods_value / (step_num * TO_GOODS_WEIGHT + to_berth_len);
     return cost_value;
 }
 
