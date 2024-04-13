@@ -320,8 +320,8 @@ bool CrashAvoid(int ri)
 void HedgeAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM])
 {
     // 性价比低的机器人避让（优先让两边，实在不行往后面退，再不行就让性价比高的让）
-    if (Robots[ri].is_goods && Robots[rj].is_goods)
-    { // 都拿物品
+    if (Robots[ri].is_goods == Robots[ri].type+1 && Robots[rj].is_goods == Robots[rj].type+1)
+    { // 都拿满
         if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
         { // 若都有/都没有碰撞过
             if (GetGoodsRobotsCompare(ri, rj))
@@ -374,8 +374,8 @@ void HedgeAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM])
             }
         }
     }
-    else if (!Robots[ri].is_goods && !Robots[rj].is_goods)
-    { // 都没拿物品
+    else if (Robots[ri].is_goods < Robots[ri].type+1 && Robots[rj].is_goods < Robots[rj].type+1)
+    { // 都没拿满物品
         if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
         { // 若都有/都没有碰撞过
             if (NoGoodsRobotsCompare(ri, rj))
@@ -428,8 +428,8 @@ void HedgeAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM])
             }
         }
     }
-    else if (!Robots[ri].is_goods && Robots[rj].is_goods)
-    { // 我没拿别人拿了，我让，ri优先让两边
+    else if (Robots[ri].is_goods < Robots[ri].type+1 && Robots[rj].is_goods == Robots[rj].type+1)
+    { // 我没拿满，别人拿了，我让，ri优先让两边
         if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
         { // 若都有/都没有碰撞过
             if (!CrashAvoid(ri))
@@ -468,7 +468,7 @@ void HedgeAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM])
         }
     }
     else
-    { // 别人没拿我拿了，别人让
+    { // 别人没拿满，我拿了，别人让
         if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
         { // 若都有/都没有碰撞过
             if (!CrashAvoid(rj))
