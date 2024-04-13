@@ -18,14 +18,14 @@ bool NoGoodsRobotsCompare(int ri, int rj)
     { // 都没有要拿的物品则，id大的优先
         return ri > rj;
     }
-    // double ri_rest_time_weight = 1000 / max(1000 - (Frame - AllGoods[goodsi].fresh), 1);
-    // double rj_rest_time_weight = 1000 / max(1000 - (Frame - AllGoods[goodsj].fresh), 1);
     double ri_val = 0;
     double rj_val = 0;
     // if (RobotNum < MAX_BUY_ROBOT_NUM)
     // {
-    ri_val = (double)AllGoods[goodsi].val / (Robots[ri].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
-    rj_val = (double)AllGoods[goodsj].val / (Robots[rj].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
+    // ri_val = (double)AllGoods[goodsi].val / (Robots[ri].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[ri].berth_index][AllGoods[goodsi].x][AllGoods[goodsi].y]); // 机器人i要拿物品的性价比
+    // rj_val = (double)AllGoods[goodsj].val / (Robots[rj].goods_distance * TO_GOODS_WEIGHT + BerthPathLength[Robots[rj].berth_index][AllGoods[goodsj].x][AllGoods[goodsj].y]); // 机器人j要拿物品的性价比
+    ri_val = (double)AllGoods[goodsi].val; // 机器人i要拿物品的性价比
+    rj_val = (double)AllGoods[goodsj].val; // 机器人j要拿物品的性价比
     // }
     // else
     // {
@@ -45,10 +45,12 @@ bool NoGoodsRobotsCompare(int ri, int rj)
 // 都拿物品的机器人之间比较所拿物品的性价比
 bool GetGoodsRobotsCompare(int ri, int rj)
 {
-    int goodsi = Robots[ri].goods_index;                                                                                // 机器人i拿的物品
-    int goodsj = Robots[rj].goods_index;                                                                                // 机器人j拿的物品
-    double ri_val = (double)AllGoods[goodsi].val / BerthPathLength[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y]; // 机器人i物品的性价比
-    double rj_val = (double)AllGoods[goodsj].val / BerthPathLength[Robots[rj].berth_index][Robots[rj].x][Robots[rj].y]; // 机器人j物品的性价比
+    int goodsi = Robots[ri].goods_index; // 机器人i拿的物品
+    int goodsj = Robots[rj].goods_index; // 机器人j拿的物品
+    // double ri_val = (double)AllGoods[goodsi].val / BerthPathLength[Robots[ri].berth_index][Robots[ri].x][Robots[ri].y]; // 机器人i物品的性价比
+    // double rj_val = (double)AllGoods[goodsj].val / BerthPathLength[Robots[rj].berth_index][Robots[rj].x][Robots[rj].y]; // 机器人j物品的性价比
+    double ri_val = (double)AllGoods[goodsi].val;
+    double rj_val = (double)AllGoods[goodsj].val;
     if (ri_val >= rj_val)
     {
         return true;
@@ -90,15 +92,7 @@ void RobotBFSToGoods(int ri, priority_queue<Road, vector<Road>, Road::Comparator
                 { // 如果自己没东西要拿，并且现在找到一个没人要拿的 或者 找到了自己要拿的
                     int to_berth_index = -1;
                     double value = 0;
-                    if (RobotNum < MAX_BUY_ROBOT_NUM)
-                    {
-                        // 若机器人没买满，优先不考虑物品刷新时间
-                        value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index, 0);
-                    }
-                    else
-                    {
-                        value = CalculateGoodsValue(goods_id, cur_path_length, to_berth_index, 0);
-                    }
+                    value = CalculateGoodsValue(ri, goods_id, cur_path_length, to_berth_index, 0);
                     {
                         lock_guard<mutex> lock(roads_pq_mutex); // 锁住互斥锁
                         roads_pq.push(Road(ri, goods_id, cur_path_length, to_berth_index, goods_path[cur_pos.first][cur_pos.second], value));
@@ -150,18 +144,22 @@ void RobotDispatchGreedy()
 
     for (int ri = 0; ri < RobotNum; ri++)
     { // 对于每个机器人
-        if (Robots[ri].is_goods == 1)
-        { // 如果机器人拿着物品就直接找港口
+        if ((Robots[ri].type == 0 && Robots[ri].is_goods == 1) || (Robots[ri].type == 1 && Robots[ri].is_goods == 2))
+        { // 如果机器人已经装满拿着物品就直接找港口
             int now_berth_id = IsOnBerth(Robots[ri].x, Robots[ri].y);
             if (now_berth_id >= 0 && now_berth_id == Robots[ri].berth_index)
-            { // 如果到达港口，放下货物，继续找其他货物（要判断是不是自己要去的港口）
-                RobotMoney += AllGoods[Robots[ri].goods_index].val;
-                Robots[ri].action = 1;
-                Berths[Robots[ri].berth_index].goods_queue.push(Robots[ri].goods_index); // 港口放入货物
-                Berths[Robots[ri].berth_index].total_goods_num++;                        // 港口放过的总货物数量
-                Robots[ri].goods_index = -1;
-                Robots[ri].goods_distance = MAX_LENGTH;
-                Robots[ri].is_goods = 0;
+            { // TODO 如果到达港口，放下货物，继续找其他货物（要判断是不是自己要去的港口）
+                while (!Robots[ri].goods_stack.empty())
+                {
+                    int goods_id = Robots[ri].goods_stack.top();
+                    RobotMoney += AllGoods[goods_id].val;
+                    Robots[ri].action = 1;
+                    Berths[Robots[ri].berth_index].goods_queue.push(goods_id); // 港口放入货物
+                    Berths[Robots[ri].berth_index].total_goods_num++;          // 港口放过的总货物数量
+                    Robots[ri].goods_index = -1;
+                    Robots[ri].goods_distance = MAX_LENGTH;
+                    Robots[ri].is_goods = 0;
+                }
             }
             else
             { // 没到港口（或者不是自己要去的港口），沿着图走（先看有没有找到被标记的优先港口）
@@ -212,6 +210,10 @@ void RobotDispatchGreedy()
         { // 如果该机器人没被匹配并且该商品没被匹配，则匹配该机器人和商品
             Robots[ri].goods_index = road.goods_index;
             Robots[ri].berth_index = road.berth_index;
+            // if (Robots[ri].type == 1 && Robots[ri].is_goods == 1)
+            // { // 已经拿了一个货的不定港口
+            //     road.berth_index = -1;
+            // }
             Robots[ri].dir = road.next_dir;
             Robots[ri].goods_distance = road.goods_distance;
             // 如果该机器人在自己想要拿的物品上，就拿起并且朝港口走
@@ -219,9 +221,19 @@ void RobotDispatchGreedy()
             if (goods_id == Robots[ri].goods_index)
             {
                 Robots[ri].action = 0;
-                Robots[ri].is_goods = 1;
-                Robots[ri].dir = PsbDirToBerth(Robots[ri].berth_index, Robots[ri].x, Robots[ri].y);
-                WorldGoods[Robots[ri].x][Robots[ri].y] = 0;
+                Robots[ri].is_goods++;
+                Robots[ri].goods_stack.push(goods_id);
+                if ((Robots[ri].type == 1 && Robots[ri].is_goods == 1) || Robots[ri].type == 0)
+                { // 如果拿满了，朝着港口走
+                    Robots[ri].dir = PsbDirToBerth(Robots[ri].berth_index, Robots[ri].x, Robots[ri].y);
+                    WorldGoods[Robots[ri].x][Robots[ri].y] = 0;
+                }
+                else
+                { // 金牌机器人没拿满
+                    // 已经拿了要拿的了，还没确定下次要拿的，只能停一帧再抉择
+                    Robots[ri].goods_index = -1;
+                    Robots[ri].dir = -1;
+                }
             }
             robot_match_num++;
             robots_match[ri] = 1;
@@ -725,8 +737,8 @@ void PrintRobotsIns()
 // 买一个机器人
 void BuyARobot(int robot_buying_index, int type)
 {
-    printf("lbot %d %d %d\n", RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y, type);   // 输出指令
-    Robots[RobotNum] = Robot(RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y, type); // 机器人的初始化
+    printf("lbot %d %d %d\n", RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y, type); // 输出指令
+    Robots[RobotNum] = Robot(RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y, type);  // 机器人的初始化
     RobotNum++;
     Money -= ROBOT_BUY_MONEY[type];    // 花钱
     OurMoney -= ROBOT_BUY_MONEY[type]; // 花钱

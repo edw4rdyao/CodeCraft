@@ -30,7 +30,7 @@ int PsbDirToBerth(int berth_id, int x, int y)
 }
 
 // 计算物品性价比，并确定最接近的港口
-double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index, int consider_rest_time)
+double CalculateGoodsValue(int ri, int goods_index, int step_num, int &to_berth_index, int consider_rest_time)
 {
     int goods_value;                   // 物品价值
     int goods_x, goods_y;              // 物品坐标
@@ -39,8 +39,6 @@ double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index, i
     goods_value = AllGoods[goods_index].val;
     goods_x = AllGoods[goods_index].x;
     goods_y = AllGoods[goods_index].y;
-    if (consider_rest_time)
-        goods_rest_time_weight = 1000.0 / max(1000 - (Frame - AllGoods[goods_index].fresh), 1);
 
     // 确定最近港口
     to_berth_index = LastMinBerth(goods_x, goods_y);
@@ -59,6 +57,12 @@ double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index, i
     else
     { // 有标记
         to_berth_len = BerthPathLength[to_berth_index][goods_x][goods_y];
+    }
+
+    // 根据机器人类型计算
+    if(Robots[ri].type == 1 && Robots[ri].is_goods == 1)
+    { // 已经装了一个货的金牌机器人，加上自己的货
+        goods_value += AllGoods[Robots[ri].goods_stack.top()].val;
     }
 
     double cost_value = (double)goods_value * goods_rest_time_weight / (step_num * TO_GOODS_WEIGHT + to_berth_len);
