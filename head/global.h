@@ -129,9 +129,9 @@ extern int ToBerthEstimateTime[MAX_BERTH_NUM][N][N];
 extern int ToDeliveryEstimateTime[MAX_DELIVERY_NUM][N][N];
 
 // 记录初始购买机器人数目和船的数目，用于调参
-inline int InitBuyType0RobotNum = 6;
-inline int InitBuyType1RobotNum = 1;
-inline int InitBuyBoatNum = (25000 - 2000 * InitBuyType0RobotNum - 5000 * InitBuyType1RobotNum) / 8000;
+extern int InitBuyType0RobotNum;
+extern int InitBuyType1RobotNum;
+extern int InitBuyBoatNum;
 
 // 初始机器人购买点购买的机器人数量
 extern int InitRobotType0ToBuy[MAX_ROBOT_BUYING_NUM];

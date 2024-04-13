@@ -340,6 +340,12 @@ void InitBerthNearestDelivery()
 // 记录船舶购买点到泊位的最短时间
 void InitBuyingToBerth()
 {
+    if (Map == 2)
+    {
+        InitBuyType0RobotNum = 8;
+        InitBuyType1RobotNum = 0;
+        InitBuyBoatNum = 1;
+    }
     // 初始化交货点到泊位之间的最短时间 -1为不可达
     memset(BuyingToBerthTime, -1, sizeof(BuyingToBerthTime));
     // 初始化离每个港口最近的购船点，购船点不可达为-1
