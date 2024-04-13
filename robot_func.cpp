@@ -1,7 +1,7 @@
 #include "head/function.h"
 
 // 没拿物品的机器人之间比较要拿物品的性价比
-bool NoGoodsRobotsCompair(int ri, int rj)
+bool NoGoodsRobotsCompare(int ri, int rj)
 {
     int goodsi = Robots[ri].goods_index; // 机器人i要拿的物品
     int goodsj = Robots[rj].goods_index; // 机器人j要拿的物品
@@ -43,7 +43,7 @@ bool NoGoodsRobotsCompair(int ri, int rj)
 }
 
 // 都拿物品的机器人之间比较所拿物品的性价比
-bool GetGoodsRobotsCompair(int ri, int rj)
+bool GetGoodsRobotsCompare(int ri, int rj)
 {
     int goodsi = Robots[ri].goods_index;                                                                                // 机器人i拿的物品
     int goodsj = Robots[rj].goods_index;                                                                                // 机器人j拿的物品
@@ -312,7 +312,7 @@ void HedgeAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM])
     { // 都拿物品
         if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
         { // 若都有/都没有碰撞过
-            if (GetGoodsRobotsCompair(ri, rj))
+            if (GetGoodsRobotsCompare(ri, rj))
             { // 我拿的好
                 if (!CrashAvoid(rj))
                 {
@@ -366,7 +366,7 @@ void HedgeAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM])
     { // 都没拿物品
         if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
         { // 若都有/都没有碰撞过
-            if (NoGoodsRobotsCompair(ri, rj))
+            if (NoGoodsRobotsCompare(ri, rj))
             { // 我拿的好
                 if (!CrashAvoid(rj))
                 {
@@ -515,7 +515,7 @@ void RushPositionAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM]
         // 都有货物或者都没有货物则比较性价比
         else if (Robots[ri].is_goods && Robots[rj].is_goods)
         {
-            if (GetGoodsRobotsCompair(ri, rj))
+            if (GetGoodsRobotsCompare(ri, rj))
             { // 我拿的好，别人停
                 Robots[rj].dir = -1;
                 is_collision_robot[rj] = true;
@@ -528,7 +528,7 @@ void RushPositionAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM]
         }
         else
         {
-            if (NoGoodsRobotsCompair(ri, rj))
+            if (NoGoodsRobotsCompare(ri, rj))
             { // 我要拿的好，别人停
                 Robots[rj].dir = -1;
                 is_collision_robot[rj] = true;
@@ -724,13 +724,13 @@ void PrintRobotsIns()
 }
 
 // 买一个机器人
-void BuyARobot(int robot_buying_index)
+void BuyARobot(int robot_buying_index, int type)
 {
-    printf("lbot %d %d %d\n", RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y,0);   // 输出指令
-    Robots[RobotNum] = Robot(RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y); // 机器人的初始化
+    printf("lbot %d %d %d\n", RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y, type);   // 输出指令
+    Robots[RobotNum] = Robot(RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y, type); // 机器人的初始化
     RobotNum++;
-    Money -= ROBOT_BUY_MONEY;    // 花钱
-    OurMoney -= ROBOT_BUY_MONEY; // 花钱
+    Money -= ROBOT_BUY_MONEY[type];    // 花钱
+    OurMoney -= ROBOT_BUY_MONEY[type]; // 花钱
     if (RobotNum >= MAX_BUY_ROBOT_NUM)
     {
         // 清除所有港口的聚焦
@@ -744,6 +744,7 @@ void BuyARobot(int robot_buying_index)
 // 购买机器人，用最大数量以及船的数量来限制，能买就买 (xmc)
 int BuyRobotsXmc()
 {
+    int type = 0;
     int buy = 0;
     if (Frame == 1)
     {
@@ -753,14 +754,14 @@ int BuyRobotsXmc()
             {
                 if (InitBuyingToBuy[j] == -1)
                     break;
-                BuyARobot(i);
+                BuyARobot(i, type);
                 buy = 1;
             }
         }
     }
     else
     { // 后续购买
-        if (Money < ROBOT_BUY_MONEY || RobotNum >= MAX_BUY_ROBOT_NUM)
+        if (Money < ROBOT_BUY_MONEY[type] || RobotNum >= MAX_BUY_ROBOT_NUM)
         {
             return buy;
         }
@@ -805,7 +806,7 @@ int BuyRobotsXmc()
                 }
             }
             AllocateRobotNum[robot_buy_index]--;
-            BuyARobot(robot_buy_index);
+            BuyARobot(robot_buy_index, type);
             buy = 1;
         }
     }

@@ -59,8 +59,10 @@ inline const double H_VALUE_WEIGHT = 2.0;
 extern int MAX_BUY_ROBOT_NUM;
 extern int MAX_BUY_BOAT_NUM;
 
-inline const int MAX_BUY_BOAT_NUM_ARRAY[10] = {0, 1, 1, 1, 1, 2, 2, 2, 3, 3};
-inline const int ROBOT_BUY_MONEY = 2000;
+inline const int MAX_BUY_BOAT_NUM_ARRAY[10] = {0, 1, 1, 2, 2, 2, 2, 2, 3, 3};  //参数可修改
+
+inline const int ROBOT_TYPE_NUM = 2;
+inline const int ROBOT_BUY_MONEY[ROBOT_TYPE_NUM] = {2000, 5000};
 inline const int BOAT_BUY_MONEY = 8000;
 
 inline const int DX[4] = {-1, 1, 0, 0};     // 每个方向x轴的偏移
@@ -184,18 +186,20 @@ extern int NextGoodsIndex; // 下一个货物的编号
 struct Robot
 {
     int x, y;           // 机器人的坐标
-    int is_goods;       // 机器是否携带货物 (0：没有，1：有)
+    int is_goods;       // 机器是否携带货物 (0：没有，1：有, 2:两个)
     int dir;            // 机器人下一步运动的方向
     int goods_index;    // 机器人携带/想携带的货物编号
     int goods_distance; // 机器人和货物的距离
     int berth_index;    // 机器人要去的泊位编号
     int action;         // 0:get()拿货物， 1:pull()放物品, -1没有动作
+    int type;           // 0:只能拿一个货，1:能拿两个货
 
     Robot() {}
-    Robot(int x, int y)
+    Robot(int x, int y, int type)
     {
         this->x = x;
         this->y = y;
+        this->type = type;
         this->is_goods = 0;
         this->dir = -1;
         this->goods_index = -1;

@@ -86,9 +86,9 @@ void Init();
 
 void Input();
 
-bool NoGoodsRobotsCompair(int ri, int rj);
+bool NoGoodsRobotsCompare(int ri, int rj);
 
-bool GetGoodsRobotsCompair(int ri, int rj);
+bool GetGoodsRobotsCompare(int ri, int rj);
 
 void RobotBFSToGoods(int ri, priority_queue<Road, vector<Road>, Road::Comparator> &roads_pq, mutex &roads_pq_mutex);
 
@@ -118,7 +118,7 @@ void BoatDispatch();
 
 void LoadGoods();
 
-void BuyARobot(int robot_buying_index);
+void BuyARobot(int robot_buying_index, int type);
 
 void BuyABoat(int boat_buying_index, int berth_index);
 
