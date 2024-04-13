@@ -47,6 +47,8 @@ inline const int MAX_LENGTH = 40000;
 
 extern int GoodsValue;
 
+extern int robot_buy_link_to_berth[MAX_ROBOT_BUYING_NUM];
+
 // 可以修改的参数 每个机器人BFS找的最多路径与长度 离货物距离的比重
 inline const int MAX_ROAD_NUM = 30;
 inline const int MAX_ROAD_LEN = 150;

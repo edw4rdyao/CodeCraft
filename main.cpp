@@ -81,6 +81,8 @@ int MAX_BUY_BOAT_NUM = 1;
 //extern const int BOAT_LEFT_TOP[4] = {0, 5, 2, 3};
 //extern const int BOAT_RIGHT_DOWN[4] = {5, 0, 3, 2};
 
+int robot_buy_link_to_berth[MAX_ROBOT_BUYING_NUM] = {0}; // 统计有多少港口跟购买点连通
+
 int OurMoney = 25000;           // 自己算出来的金钱
 int RobotMoney = 0;             // 机器人拿的的钱
 int Money, BoatCapacity, Frame; // 金钱，船的容量，当前帧数

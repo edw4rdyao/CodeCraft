@@ -119,7 +119,7 @@ int CalculateArea(int buy_index)
 // 按地图大小计算机器人数目和分配
 void AllocateRobot()
 {
-    int robot_buy_link_to_berth[MAX_ROBOT_BUYING_NUM] = {0}; // 统计有多少港口跟购买点连通
+    // int robot_buy_link_to_berth[MAX_ROBOT_BUYING_NUM] = {0}; // 统计有多少港口跟购买点连通
     int buy_index = 0;
     for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
     {
@@ -173,11 +173,21 @@ void AllocateRobot()
             }
         }
     }
-    double a = 1.22508984e-04;
-    double b = 4.74150604e-01;
-    double c = 10.218760209081996;
-    // MAX_BUY_ROBOT_NUM = (int)(a*(double)Area + b*(double)BerthNum + 10.218760209081996); //机器人总数
-    MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)BerthNum + c);
+    // double a = 1.22508984e-04;
+    // double b = 4.74150604e-01;
+    // double c = 10.218760209081996;
+    // MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)BerthNum + c);
+
+    double a = 0.00020114;
+    double b = -0.00035579;
+    double c = 12.442454480099096;
+    MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)(Area / BerthNum) + c);
+
+    // double a = -9.35046108e-03;
+    // double b = 1.83585986e-07;
+    // double c = 127.90528015346925;
+    // MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)(Area*Area) + c);
+
     // // 开始分配
     // for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
     //     if (AllocateRobotNum[buy_index] == buy_index){
@@ -218,7 +228,7 @@ void AllocateRobot()
     {
         if (AllocateRobotNum[buy_index] == buy_index)
         {
-            rest_robot[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)robot_buy_link_to_berth[buy_index] + c));
+            rest_robot[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)(AreaBuying[buy_index] / robot_buy_link_to_berth[buy_index]) + c));
         }
     }
 
@@ -236,7 +246,7 @@ void AllocateRobot()
                     num++;
                 }
             }
-            AllocateRobotNum[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)robot_buy_link_to_berth[buy_index] + c) / (double)(num));
+            AllocateRobotNum[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)(AreaBuying[buy_index] / robot_buy_link_to_berth[buy_index]) + c) / (double)(num));
             rest_robot[buy_index] -= AllocateRobotNum[buy_index] * num;
         }
         else
