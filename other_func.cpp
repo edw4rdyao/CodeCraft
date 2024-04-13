@@ -24,7 +24,7 @@ int PsbDirToBerth(int berth_id, int x, int y)
 {
     if (BerthPath[berth_id][x][y].size() > 0)
     {
-        return BerthPath[berth_id][x][y][Frame % BerthPath[berth_id][x][y].size()];
+        return BerthPath[berth_id][x][y][0];
     }
     return -1;
 }
