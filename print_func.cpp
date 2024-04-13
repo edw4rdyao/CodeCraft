@@ -181,12 +181,23 @@ void PrintInitBuy(ofstream &out_file)
         out_file << "Init Boat Buying: " << InitBuyingToBuy[i] << endl;
     }
 
-    out_file << endl;
+    // out_file << endl;
+    // for (int i = 0; i < BerthNum; i++){
+    //     for (int j = 0; j < 200; j++){
+    //         for (int k = 0; k < 200; k++){
+    //             out_file << BerthPathLength[i][j][k];
+    //         }
+    //         out_file << endl;
+    //     }
+    //     out_file << endl;
+    // }
+
     out_file << "AREA: " << Area << endl;
     for (int i = 0; i < RobotBuyingNum; i++)
     {
         out_file << "RobotBuying area: " << i << ' ' << AreaBuying[i] << endl;
         out_file << "RobotBuying robot: " << i << ' ' << AllocateRobotNum[i] << endl;
+        out_file << "RobotBuying link berth: " << ' ' << robot_buy_link_to_berth[i] << endl;
     }
 
     out_file << "MAX Robot: " << test << endl;

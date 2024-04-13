@@ -119,7 +119,7 @@ int CalculateArea(int buy_index)
 // 按地图大小计算机器人数目和分配
 void AllocateRobot()
 {
-    int robot_buy_link_to_berth[MAX_ROBOT_BUYING_NUM] = {0}; // 统计有多少港口跟购买点连通
+    // int robot_buy_link_to_berth[MAX_ROBOT_BUYING_NUM] = {0}; // 统计有多少港口跟购买点连通
     int buy_index = 0;
     for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
     {
@@ -173,11 +173,21 @@ void AllocateRobot()
             }
         }
     }
-    double a = 1.22508984e-04;
-    double b = 4.74150604e-01;
-    double c = 10.218760209081996;
-    // MAX_BUY_ROBOT_NUM = (int)(a*(double)Area + b*(double)BerthNum + 10.218760209081996); //机器人总数
-    MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)BerthNum + c);
+    // double a = 1.22508984e-04;
+    // double b = 4.74150604e-01;
+    // double c = 10.218760209081996;
+    // MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)BerthNum + c);
+
+    double a = 0.00020114;
+    double b = -0.00035579;
+    double c = 12.442454480099096;
+    MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)(Area / BerthNum) + c);
+
+    // double a = -9.35046108e-03;
+    // double b = 1.83585986e-07;
+    // double c = 127.90528015346925;
+    // MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)(Area*Area) + c);
+
     // // 开始分配
     // for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
     //     if (AllocateRobotNum[buy_index] == buy_index){
@@ -218,7 +228,7 @@ void AllocateRobot()
     {
         if (AllocateRobotNum[buy_index] == buy_index)
         {
-            rest_robot[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)robot_buy_link_to_berth[buy_index] + c));
+            rest_robot[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)(AreaBuying[buy_index] / robot_buy_link_to_berth[buy_index]) + c));
         }
     }
 
@@ -236,7 +246,7 @@ void AllocateRobot()
                     num++;
                 }
             }
-            AllocateRobotNum[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)robot_buy_link_to_berth[buy_index] + c) / (double)(num));
+            AllocateRobotNum[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)(AreaBuying[buy_index] / robot_buy_link_to_berth[buy_index]) + c) / (double)(num));
             rest_robot[buy_index] -= AllocateRobotNum[buy_index] * num;
         }
         else
@@ -253,42 +263,53 @@ void AllocateRobot()
     }
 }
 
-//根据海域连通性确定船只最少购买数
-void linkMaxBuyBoat(){
+// 根据海域连通性确定船只最少购买数
+void linkMaxBuyBoat()
+{
     int buy_index = 0;
-    for (buy_index = 0; buy_index < BoatBuyingNum; buy_index++){
-        if (buy_index == 0){
+    for (buy_index = 0; buy_index < BoatBuyingNum; buy_index++)
+    {
+        if (buy_index == 0)
+        {
             // 0号购买点直接算一个海域
             AllocateBoatNum[buy_index] = buy_index;
             LinkMaxBoatBuying++;
         }
-        else{
+        else
+        {
             // 对其他的要看之前的购买点是否连通
-            bool is_link = false; //是否连通
-            for (int pre_buy_index = 0; pre_buy_index < buy_index; pre_buy_index++){
+            bool is_link = false; // 是否连通
+            for (int pre_buy_index = 0; pre_buy_index < buy_index; pre_buy_index++)
+            {
                 // 之前的港口
                 int bei = 0;
-                for (bei = 0; bei < BerthNum; bei++){
+                for (bei = 0; bei < BerthNum; bei++)
+                {
                     // 根据跟港口的连通性判断
-                    if (BuyingToBerthTime[pre_buy_index][bei] > 0){
+                    if (BuyingToBerthTime[pre_buy_index][bei] > 0)
+                    {
                         // 之前连通
-                        if (BuyingToBerthTime[buy_index][bei] > 0){
+                        if (BuyingToBerthTime[buy_index][bei] > 0)
+                        {
                             // 我也连通
                             is_link = true;
                             break;
                         }
-                        else{
+                        else
+                        {
                             continue;
                         }
                     }
                 }
-                if (is_link){
+                if (is_link)
+                {
                     // 有连通
                     AllocateBoatNum[buy_index] = pre_buy_index;
                     break;
                 }
             }
-            if (!is_link){
+            if (!is_link)
+            {
                 // 无连通,新的海域
                 AllocateRobotNum[buy_index] = buy_index;
                 LinkMaxBoatBuying++;
@@ -368,14 +389,14 @@ int PositionToPositionAStar(int sx, int sy, int sdir, int d_type, int d_id)
     int dx = d_type ? Berths[d_id].x : Deliveries[d_id].x;
     int dy = d_type ? Berths[d_id].y : Deliveries[d_id].y;
     shared_ptr<BoatStateNode> start_state_node = make_shared<BoatStateNode>(
-            sx, sy, sdir, -1, false, 0, GetHValue(sx, sy, sdir, -1, d_type, d_id), 1, nullptr);
+        sx, sy, sdir, -1, false, 0, GetHValue(sx, sy, sdir, -1, d_type, d_id), 1, nullptr);
 
     // 开始A*找最短时间
     vector<shared_ptr<BoatStateNode>> openlist_heap;             // 开放列表，小根堆
     vector<vector<vector<shared_ptr<BoatStateNode>>>> all_nodes( // 哈希表，用来存所有的节点
-            N, vector<vector<shared_ptr<BoatStateNode>>>(
-                    N, vector<shared_ptr<BoatStateNode>>(
-                            4, nullptr)));
+        N, vector<vector<shared_ptr<BoatStateNode>>>(
+               N, vector<shared_ptr<BoatStateNode>>(
+                      4, nullptr)));
 
     all_nodes[sx][sy][start_state_node->dir] = start_state_node; // 加入哈希表
     openlist_heap.push_back(start_state_node);                   // 一个元素直接加入开放列表，不需要调整堆
@@ -438,7 +459,7 @@ int PositionToPositionAStar(int sx, int sy, int sdir, int d_type, int d_id)
                 if (all_nodes[nx][ny][ndir] == nullptr)
                 { // 之前没找过，则计算F值，G值，加入到开放列表并且调整小根堆(更新到节点哈希表)
                     shared_ptr<BoatStateNode> new_state_node = make_shared<BoatStateNode>(
-                            nx, ny, ndir, move, bool(boat_state == 2), new_g_value, GetHValue(nx, ny, ndir, move, d_type, d_id), 1, cur);
+                        nx, ny, ndir, move, bool(boat_state == 2), new_g_value, GetHValue(nx, ny, ndir, move, d_type, d_id), 1, cur);
                     all_nodes[nx][ny][ndir] = new_state_node;
                     openlist_heap.push_back(new_state_node);
                     push_heap(openlist_heap.begin(), openlist_heap.end(), CompareBoatStateNode());
