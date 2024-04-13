@@ -344,9 +344,9 @@ int PositionToPositionAStar(int sx, int sy, int sdir, int d_type, int d_id)
 // 是哪张地图
 int WhichMap()
 {
-    if (DeliveryToBerthTime[0][0][0] == -1 && DeliveryToBerthTime[0][0][1] == 487 && DeliveryToBerthTime[0][0][1] == 485)
+    if (DeliveryToBerthTime[0][0][0] == -1 && DeliveryToBerthTime[0][0][1] == 487 && DeliveryToBerthTime[0][0][2] == 485)
         return 1;
-    else if (DeliveryToBerthTime[0][0][0] == 308 && DeliveryToBerthTime[0][0][1] == 307 && DeliveryToBerthTime[0][0][1] == 312)
+    else if (DeliveryToBerthTime[0][0][0] == 308 && DeliveryToBerthTime[0][0][1] == 307 && DeliveryToBerthTime[0][0][2] == 312)
         return 2;
     else
         return 3;

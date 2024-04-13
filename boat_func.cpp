@@ -15,7 +15,19 @@ void AllocateBoat(){
     double a = 0.00254931;
     double b = 0.00039721;
     double c = 1.11449407347353;
-    MAX_BUY_BOAT_NUM = max(MAX_BUY_BOAT_NUM, (int)(ceil(a*length+b*length*BerthNum+c)));
+//    MAX_BUY_BOAT_NUM = max(MAX_BUY_BOAT_NUM, (int)(ceil(a*length+b*length*BerthNum+c)));
+    if (Map == 1)
+    {
+        MAX_BUY_BOAT_NUM = 2;
+    }
+    if (Map == 2)
+    {
+        MAX_BUY_BOAT_NUM = 2;
+    }
+    if (Map == 3)
+    {
+        MAX_BUY_BOAT_NUM = 2;
+    }
 }
 
 // 在交货点找一个最好的港口出发(但是要确保去了可以回来)

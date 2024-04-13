@@ -15,6 +15,7 @@
 #include <mutex>
 #include <cassert>
 #include <cmath>
+#include <stack>
 #else
 #include <bits/stdc++.h>
 #endif
@@ -128,11 +129,13 @@ extern int ToBerthEstimateTime[MAX_BERTH_NUM][N][N];
 extern int ToDeliveryEstimateTime[MAX_DELIVERY_NUM][N][N];
 
 // 记录初始购买机器人数目和船的数目，用于调参
-extern int InitBuyRobotNum;
-extern int InitBuyBoatNum;
+inline int InitBuyType0RobotNum = 6;
+inline int InitBuyType1RobotNum = 1;
+inline int InitBuyBoatNum = (25000 - 2000 * InitBuyType0RobotNum - 5000 * InitBuyType1RobotNum) / 8000;
 
 // 初始机器人购买点购买的机器人数量
-extern int InitRobotToBuy[MAX_ROBOT_BUYING_NUM];
+extern int InitRobotType0ToBuy[MAX_ROBOT_BUYING_NUM];
+extern int InitRobotType1ToBuy[MAX_ROBOT_BUYING_NUM];
 
 // 初始要去的港口、购买船的位置
 extern int InitBerthToGo[MAX_BOAT_BUYING_NUM];

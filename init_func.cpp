@@ -395,20 +395,32 @@ void InitBerthToBerth()
 // 初始化港口最近的购买点和交货点
 void InitRobotAndBoatBuy()
 {
-    memset(InitRobotToBuy, -1, sizeof(InitRobotToBuy));
+    memset(InitRobotType0ToBuy, 0, sizeof(InitRobotType0ToBuy));
+    memset(InitRobotType1ToBuy, 0, sizeof(InitRobotType1ToBuy));
     memset(InitBuyingToBuy, -1, sizeof(InitBuyingToBuy));
     memset(InitBerthToGo, -1, sizeof(InitBerthToGo));
 
     // 机器人
-    int robot_buy_num_average = InitBuyRobotNum / (int)RobotBuyingNum;
-    int robot_buy_num_remain = InitBuyRobotNum % (int)RobotBuyingNum;
+    int robot_buy_num_average = InitBuyType0RobotNum / (int)RobotBuyingNum;
+    int robot_buy_num_remain = InitBuyType0RobotNum % (int)RobotBuyingNum;
     for (int rbi = 0; rbi < RobotBuyingNum; rbi++)
     {
-        InitRobotToBuy[rbi] = robot_buy_num_average;
+        InitRobotType0ToBuy[rbi] = robot_buy_num_average;
         if (robot_buy_num_remain > 0)
         {
-            InitRobotToBuy[rbi]++;
+            InitRobotType0ToBuy[rbi]++;
             robot_buy_num_remain--;
+        }
+    }
+    int gold_robot_num = InitBuyType1RobotNum;
+    for (int rbi = 0; rbi < RobotBuyingNum; rbi++)
+    {
+        if (gold_robot_num == 0)
+            break;
+        else
+        {
+            InitRobotType1ToBuy[rbi]++;
+            gold_robot_num--;
         }
     }
 

@@ -175,7 +175,19 @@ void PrintBoatRouts(ofstream &out_file)
 void PrintInitBuy(ofstream &out_file)
 {
     out_file << "----------------------------------------Init Buy Info-----------------------------------------" << endl;
-    out_file << "Init Buy Robot Num: " << InitBuyRobotNum << endl;
+    out_file << "Map: " << Map << endl;
+    out_file << "Init Buy Robot0 Num: " << InitBuyType0RobotNum << endl;
+    out_file << "Init Buy Robot1 Num: " << InitBuyType1RobotNum << endl;
+
+    out_file << "type0 Buy : ";
+    for (int i = 0; i < MAX_ROBOT_BUYING_NUM; i++)
+        out_file << InitRobotType0ToBuy[i] << ' ';
+    out_file << endl;
+    out_file << "type1 Buy : ";
+    for (int i = 0; i < MAX_ROBOT_BUYING_NUM; i++)
+        out_file << InitRobotType1ToBuy[i] << ' ';
+    out_file << endl;
+
     out_file << "Init Buy Boat Num: " << InitBuyBoatNum << endl;
     for (int i = 0; i < MAX_BOAT_BUYING_NUM; i++)
     {
