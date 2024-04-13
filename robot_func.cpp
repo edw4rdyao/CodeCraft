@@ -744,17 +744,23 @@ void BuyARobot(int robot_buying_index, int type)
 // 购买机器人，用最大数量以及船的数量来限制，能买就买 (xmc)
 int BuyRobotsXmc()
 {
-    int type = 0;
+    int type = 1;
     int buy = 0;
     if (Frame == 1)
     {
+        int init_money = 25000;
         for (int i = 0; i < RobotBuyingNum; i++)
         {
             for (int j = 0; j < InitRobotToBuy[i]; j++)
             {
                 if (InitBuyingToBuy[j] == -1)
                     break;
+                if (init_money < ROBOT_BUY_MONEY[type]){
+                    BuyARobot(i, 0);
+                    break;
+                }
                 BuyARobot(i, type);
+                init_money -= 5000;
                 buy = 1;
             }
         }
