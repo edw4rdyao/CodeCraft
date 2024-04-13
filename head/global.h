@@ -21,6 +21,8 @@
 
 using namespace std;
 
+extern int Map;
+
 inline const int MAX_FRAME = 15000;
 
 inline const unsigned MAX_ROBOT_NUM = 100;

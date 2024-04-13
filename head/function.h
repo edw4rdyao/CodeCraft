@@ -166,4 +166,6 @@ string GetTimeString();
 
 ofstream CreateFile();
 
+int WhichMap();
+
 #endif // CODECRAFTSDK_FUNCTION_H

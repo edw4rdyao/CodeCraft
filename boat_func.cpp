@@ -1,5 +1,23 @@
 #include "head/function.h"
 
+//根据港口到交货点的距离计算购买船只数目
+void AllocateBoat(){
+    // double length = 0; // 统计港口到虚拟点的平均
+    for (int bei = 0; bei < BerthNum; bei++){
+        for (int i = 0; i < 4; i++){
+            if (BerthToDeliveryTime[bei][BerthNearestDelivery[bei]][0] != -1){
+                length += BerthToDeliveryTime[bei][BerthNearestDelivery[bei]][0]; // 港口到交货点最短时间(0号方向)
+                break;
+            }
+        }
+    }
+    length /= BerthNum;
+    double a = 0.00254931;
+    double b = 0.00039721;
+    double c = 1.11449407347353;
+    MAX_BUY_BOAT_NUM = max(MAX_BUY_BOAT_NUM, (int)(ceil(a*length+b*length*BerthNum+c)));
+}
+
 // 在交货点找一个最好的港口出发(但是要确保去了可以回来)
 int FindBestBerthFromDelivery(int boat_id, int delivery_id)
 {

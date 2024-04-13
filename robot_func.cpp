@@ -1,5 +1,152 @@
 #include "head/function.h"
 
+// 按地图大小计算机器人数目和分配
+void AllocateRobot()
+{
+    // int robot_buy_link_to_berth[MAX_ROBOT_BUYING_NUM] = {0}; // 统计有多少港口跟购买点连通
+    int buy_index = 0;
+    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
+    {
+        if (buy_index == 0)
+        {
+            // 0号购买点直接bfs
+            AreaBuying[buy_index] = CalculateArea(buy_index);
+            Area += AreaBuying[buy_index];
+            AllocateRobotNum[buy_index] = buy_index;
+        }
+        else
+        {
+            // 对其他的要看之前的购买点是否连通
+            bool is_link = false; // 是否连通
+            for (int pre_buy_index = 0; pre_buy_index < buy_index; pre_buy_index++)
+            {
+                // 之前的港口
+                int bei = 0;
+                for (bei = 0; bei < BerthNum; bei++)
+                {
+                    // 根据跟港口的连通性判断
+                    if (BerthPathLength[bei][RobotBuyings[pre_buy_index].x][RobotBuyings[pre_buy_index].y] > 0)
+                    {
+                        // 之前连通
+                        if (BerthPathLength[bei][RobotBuyings[buy_index].x][RobotBuyings[buy_index].y] > 0)
+                        {
+                            // 我也连通
+                            is_link = true;
+                            break;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                    }
+                }
+                if (is_link)
+                {
+                    // 有连通,相同面积
+                    AreaBuying[buy_index] = AreaBuying[pre_buy_index];
+                    AllocateRobotNum[buy_index] = pre_buy_index; // 分配数目跟bei相同
+                    break;
+                }
+            }
+            if (!is_link)
+            {
+                // 无连通，重新bfs
+                AreaBuying[buy_index] = CalculateArea(buy_index);
+                Area += AreaBuying[buy_index];
+                AllocateRobotNum[buy_index] = buy_index;
+            }
+        }
+    }
+    // double a = 1.22508984e-04;
+    // double b = 4.74150604e-01;
+    // double c = 10.218760209081996;
+    // MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)BerthNum + c);
+
+    double a = 0.00011365;
+    double b = 0.000231;
+    double c = 11.663314621437582;
+    MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)(Area / BerthNum) + c);
+
+    // double a = -9.35046108e-03;
+    // double b = 1.83585986e-07;
+    // double c = 127.90528015346925;
+    // MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)(Area*Area) + c);
+
+    // // 开始分配
+    // for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
+    //     if (AllocateRobotNum[buy_index] == buy_index){
+    //         int num = 0;
+    //         for (int after_buy_index = buy_index; after_buy_index < RobotBuyingNum; after_buy_index++){
+    //             // 统计之后几个人跟我连通
+    //             if (AllocateRobotNum[after_buy_index] == buy_index){
+    //                 num++;
+    //             }
+    //         }
+    //         AllocateRobotNum[buy_index] = (int)(MAX_BUY_ROBOT_NUM*((double)(AreaBuying[buy_index])/(double)(Area))/(double)(num));
+    //     }
+    //     else{
+    //         AllocateRobotNum[buy_index] = AllocateRobotNum[AllocateRobotNum[buy_index]];
+    //     }
+    // }
+    // 统计连通的港口数
+    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
+    {
+        if (AllocateRobotNum[buy_index] == buy_index)
+        {
+            for (int bei = 0; bei < BerthNum; bei++)
+            {
+                if (BerthPathLength[bei][RobotBuyings[buy_index].x][RobotBuyings[buy_index].y] > 0)
+                {
+                    robot_buy_link_to_berth[buy_index]++;
+                }
+            }
+        }
+        else
+        {
+            robot_buy_link_to_berth[buy_index] = robot_buy_link_to_berth[AllocateRobotNum[buy_index]];
+        }
+    }
+
+    int rest_robot[MAX_ROBOT_BUYING_NUM] = {0}; // 分配的余数
+    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
+    {
+        if (AllocateRobotNum[buy_index] == buy_index)
+        {
+            rest_robot[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)(AreaBuying[buy_index] / robot_buy_link_to_berth[buy_index]) + c));
+        }
+    }
+
+    // 开始分配
+    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
+    {
+        if (AllocateRobotNum[buy_index] == buy_index)
+        {
+            int num = 0;
+            for (int after_buy_index = buy_index; after_buy_index < RobotBuyingNum; after_buy_index++)
+            {
+                // 统计之后几个人跟我连通
+                if (AllocateRobotNum[after_buy_index] == buy_index)
+                {
+                    num++;
+                }
+            }
+            AllocateRobotNum[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)(AreaBuying[buy_index] / robot_buy_link_to_berth[buy_index]) + c) / (double)(num));
+            rest_robot[buy_index] -= AllocateRobotNum[buy_index] * num;
+        }
+        else
+        {
+            int rest = 0; // 余数
+            if (rest_robot[AllocateRobotNum[buy_index]] > 0)
+            {
+                rest = rest_robot[AllocateRobotNum[buy_index]];
+                rest_robot[AllocateRobotNum[buy_index]] = 0;
+            }
+            AllocateRobotNum[buy_index] = AllocateRobotNum[AllocateRobotNum[buy_index]];
+            AllocateRobotNum[buy_index] += rest;
+        }
+    }
+}
+
 // 没拿物品的机器人之间比较要拿物品的性价比
 bool NoGoodsRobotsCompare(int ri, int rj)
 {
