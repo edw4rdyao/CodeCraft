@@ -48,8 +48,8 @@ inline const int MAX_LENGTH = 40000;
 extern int GoodsValue;
 
 // 可以修改的参数 每个机器人BFS找的最多路径与长度 离货物距离的比重
-inline const int MAX_ROAD_NUM = 20;
-inline const int MAX_ROAD_LEN = 400;
+inline const int MAX_ROAD_NUM = 30;
+inline const int MAX_ROAD_LEN = 150;
 inline const double TO_GOODS_WEIGHT = 1.0;
 inline const double H_VALUE_WEIGHT = 2.0;
 
@@ -57,7 +57,7 @@ inline const double H_VALUE_WEIGHT = 2.0;
 extern int MAX_BUY_ROBOT_NUM;
 extern int MAX_BUY_BOAT_NUM;
 
-inline const int MAX_BUY_BOAT_NUM_ARRAY[10] = {0, 1, 1, 1, 1, 2, 2, 2, 3, 3};
+inline const int MAX_BUY_BOAT_NUM_ARRAY[10] = {0, 1, 1, 1, 1, 2, 2, 2, 3, 3};  //参数可修改
 inline const int ROBOT_BUY_MONEY = 2000;
 inline const int BOAT_BUY_MONEY = 8000;
 

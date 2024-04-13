@@ -1,7 +1,7 @@
 #include "head/function.h"
 
 // 没拿物品的机器人之间比较要拿物品的性价比
-bool NoGoodsRobotsCompair(int ri, int rj)
+bool NoGoodsRobotsCompare(int ri, int rj)
 {
     int goodsi = Robots[ri].goods_index; // 机器人i要拿的物品
     int goodsj = Robots[rj].goods_index; // 机器人j要拿的物品
@@ -43,7 +43,7 @@ bool NoGoodsRobotsCompair(int ri, int rj)
 }
 
 // 都拿物品的机器人之间比较所拿物品的性价比
-bool GetGoodsRobotsCompair(int ri, int rj)
+bool GetGoodsRobotsCompare(int ri, int rj)
 {
     int goodsi = Robots[ri].goods_index;                                                                                // 机器人i拿的物品
     int goodsj = Robots[rj].goods_index;                                                                                // 机器人j拿的物品
@@ -311,7 +311,7 @@ void HedgeAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM])
     { // 都拿物品
         if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
         { // 若都有/都没有碰撞过
-            if (GetGoodsRobotsCompair(ri, rj))
+            if (GetGoodsRobotsCompare(ri, rj))
             { // 我拿的好
                 if (!CrashAvoid(rj))
                 {
@@ -365,7 +365,7 @@ void HedgeAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM])
     { // 都没拿物品
         if ((is_collision_robot[ri] && is_collision_robot[rj]) || (!is_collision_robot[ri] && !is_collision_robot[rj]))
         { // 若都有/都没有碰撞过
-            if (NoGoodsRobotsCompair(ri, rj))
+            if (NoGoodsRobotsCompare(ri, rj))
             { // 我拿的好
                 if (!CrashAvoid(rj))
                 {
@@ -514,7 +514,7 @@ void RushPositionAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM]
         // 都有货物或者都没有货物则比较性价比
         else if (Robots[ri].is_goods && Robots[rj].is_goods)
         {
-            if (GetGoodsRobotsCompair(ri, rj))
+            if (GetGoodsRobotsCompare(ri, rj))
             { // 我拿的好，别人停
                 Robots[rj].dir = -1;
                 is_collision_robot[rj] = true;
@@ -527,7 +527,7 @@ void RushPositionAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM]
         }
         else
         {
-            if (NoGoodsRobotsCompair(ri, rj))
+            if (NoGoodsRobotsCompare(ri, rj))
             { // 我要拿的好，别人停
                 Robots[rj].dir = -1;
                 is_collision_robot[rj] = true;

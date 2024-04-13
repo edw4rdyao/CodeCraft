@@ -348,7 +348,7 @@ void BoatDispatch()
             }
             else
             { // 没有装满，有货继续装，没货就调度
-                if (Berths[Boats[bi].dest_berth].goods_queue.size() == 0)
+                if (Berths[Boats[bi].dest_berth].goods_queue.empty())
                 { // 港口上没货了，选一个最好的港口或者调度
                     int best_berth = FindBestBerthOrGoFromBerth(bi);
                     if (best_berth == -2)
