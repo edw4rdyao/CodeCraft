@@ -59,7 +59,7 @@ inline const double H_VALUE_WEIGHT = 2.0;
 extern int MAX_BUY_ROBOT_NUM;
 extern int MAX_BUY_BOAT_NUM;
 
-inline const int MAX_BUY_BOAT_NUM_ARRAY[10] = {0, 1, 1, 2, 2, 2, 2, 2, 3, 3};  //参数可修改
+inline const int MAX_BUY_BOAT_NUM_ARRAY[10] = {0, 1, 1, 2, 2, 2, 2, 2, 3, 3}; // 参数可修改
 
 inline const int ROBOT_TYPE_NUM = 2;
 inline const int ROBOT_BUY_MONEY[ROBOT_TYPE_NUM] = {2000, 5000};
@@ -85,14 +85,14 @@ inline const int REV_DIR[4] = {1, 0, 3, 2}; // 上下左右的反方向（用于
 // 船体位置标号，核心点为0
 // 使用下面的数组可以从核心点开始遍历0, 1, 2, 3, 4, 5号位置
 inline const int DX_BOAT[4][6] = {{0, 0, 0, 1, 1, 1},     // 右
-                           {0, 0, 0, -1, -1, -1},  // 左
-                           {0, -1, -2, 0, -1, -2}, // 上
-                           {0, 1, 2, 0, 1, 2}};    // 下
+                                  {0, 0, 0, -1, -1, -1},  // 左
+                                  {0, -1, -2, 0, -1, -2}, // 上
+                                  {0, 1, 2, 0, 1, 2}};    // 下
 
 inline const int DY_BOAT[4][6] = {{0, 1, 2, 0, 1, 2},     // 右
-                           {0, -1, -2, 0, -1, -2}, // 左
-                           {0, 0, 0, 1, 1, 1},     // 上
-                           {0, 0, 0, -1, -1, -1}}; // 下
+                                  {0, -1, -2, 0, -1, -2}, // 左
+                                  {0, 0, 0, 1, 1, 1},     // 上
+                                  {0, 0, 0, -1, -1, -1}}; // 下
 
 // 船：0右 1左 2上 3下，顺逆时针后各个方向对应的方向
 inline const int ROT_DIR[2][4] = {{3, 2, 0, 1},
@@ -104,8 +104,8 @@ inline const int ROT_POS[2] = {2, 4};
 inline const int BOAT_LEFT_TOP[4] = {0, 5, 2, 3};
 inline const int BOAT_RIGHT_DOWN[4] = {5, 0, 3, 2};
 
-extern int OurMoney;           // 自己算出来的金钱
-extern int RobotMoney;             // 机器人拿的的钱
+extern int OurMoney;                   // 自己算出来的金钱
+extern int RobotMoney;                 // 机器人拿的的钱
 extern int Money, BoatCapacity, Frame; // 金钱，船的容量，当前帧数
 extern unsigned int World[N][N];       // 地图
 extern int WorldGoods[N][N];           // 地图上每个位置的商品
@@ -137,8 +137,8 @@ extern int InitBerthToGo[MAX_BOAT_BUYING_NUM];
 extern int InitBuyingToBuy[MAX_BOAT_BUYING_NUM];
 
 extern int AllocateRobotNum[MAX_ROBOT_NUM]; // 每个购买点分配的机器人数
-extern int AreaBuying[MAX_ROBOT_NUM]; // 每个购买点占据面积大小
-extern int Area; // 总面积大小
+extern int AreaBuying[MAX_ROBOT_NUM];       // 每个购买点占据面积大小
+extern int Area;                            // 总面积大小
 
 extern int test;
 extern int LinkMaxBoatBuying;
@@ -185,14 +185,15 @@ extern int NextGoodsIndex; // 下一个货物的编号
 
 struct Robot
 {
-    int x, y;           // 机器人的坐标
-    int is_goods;       // 机器是否携带货物 (0：没有，1：有, 2:两个)
-    int dir;            // 机器人下一步运动的方向
-    int goods_index;    // 机器人携带/想携带的货物编号
-    int goods_distance; // 机器人和货物的距离
-    int berth_index;    // 机器人要去的泊位编号
-    int action;         // 0:get()拿货物， 1:pull()放物品, -1没有动作
-    int type;           // 0:只能拿一个货，1:能拿两个货
+    int x, y;               // 机器人的坐标
+    int is_goods;           // 机器是否携带货物 (0：没有，1：有, 2:两个)
+    int dir;                // 机器人下一步运动的方向
+    int goods_index;        // 机器人携带/想携带的货物编号
+    int goods_distance;     // 机器人和货物的距离
+    int berth_index;        // 机器人要去的泊位编号
+    int action;             // 0:get()拿货物， 1:pull()放物品, -1没有动作
+    int type;               // 0:只能拿一个货，1:能拿两个货
+    stack<int> goods_stack; // 拿的货物的栈
 
     Robot() {}
     Robot(int x, int y, int type)
@@ -318,8 +319,8 @@ struct BoatStateNode
 
     BoatStateNode(int x, int y, int dir, int action, bool is_on_main, int g_value, int h_value,
                   int list_state, shared_ptr<BoatStateNode> pre_state)
-            : x(x), y(y), dir(dir), action(action), is_on_main(is_on_main), g_value(g_value), h_value(h_value),
-              list_state(list_state), pre_state(pre_state) {}
+        : x(x), y(y), dir(dir), action(action), is_on_main(is_on_main), g_value(g_value), h_value(h_value),
+          list_state(list_state), pre_state(pre_state) {}
 };
 
 struct CompareBoatStateNode
@@ -416,4 +417,4 @@ namespace std
     };
 }
 
-#endif //CODECRAFTSDK_GLOBAL_H
+#endif // CODECRAFTSDK_GLOBAL_H

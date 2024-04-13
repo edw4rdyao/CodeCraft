@@ -48,7 +48,7 @@ int LastMinBerth(int x, int y);
 
 int PsbDirToBerth(int berth_id, int x, int y);
 
-double CalculateGoodsValue(int goods_index, int step_num, int &to_berth_index, int consider_rest_time);
+double CalculateGoodsValue(int ri, int goods_index, int step_num, int &to_berth_index, int consider_rest_time);
 
 vector<int> GetRandomDirection();
 
@@ -166,5 +166,4 @@ string GetTimeString();
 
 ofstream CreateFile();
 
-
-#endif //CODECRAFTSDK_FUNCTION_H
+#endif // CODECRAFTSDK_FUNCTION_H
