@@ -152,6 +152,7 @@ void RobotDispatchGreedy()
                 while (!Robots[ri].goods_stack.empty())
                 {
                     int goods_id = Robots[ri].goods_stack.top();
+                    Robots[ri].goods_stack.pop();
                     RobotMoney += AllGoods[goods_id].val;
                     Robots[ri].action = 1;
                     Berths[Robots[ri].berth_index].goods_queue.push(goods_id); // 港口放入货物
