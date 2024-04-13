@@ -2,6 +2,8 @@
 
 #define DEBUG
 
+int Map;
+
 //extern const int MAX_FRAME = 15000;
 
 //extern const unsigned MAX_ROBOT_NUM = 100;

@@ -120,153 +120,6 @@ int CalculateArea(int buy_index)
     return area;
 }
 
-// 按地图大小计算机器人数目和分配
-void AllocateRobot()
-{
-    // int robot_buy_link_to_berth[MAX_ROBOT_BUYING_NUM] = {0}; // 统计有多少港口跟购买点连通
-    int buy_index = 0;
-    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
-    {
-        if (buy_index == 0)
-        {
-            // 0号购买点直接bfs
-            AreaBuying[buy_index] = CalculateArea(buy_index);
-            Area += AreaBuying[buy_index];
-            AllocateRobotNum[buy_index] = buy_index;
-        }
-        else
-        {
-            // 对其他的要看之前的购买点是否连通
-            bool is_link = false; // 是否连通
-            for (int pre_buy_index = 0; pre_buy_index < buy_index; pre_buy_index++)
-            {
-                // 之前的港口
-                int bei = 0;
-                for (bei = 0; bei < BerthNum; bei++)
-                {
-                    // 根据跟港口的连通性判断
-                    if (BerthPathLength[bei][RobotBuyings[pre_buy_index].x][RobotBuyings[pre_buy_index].y] > 0)
-                    {
-                        // 之前连通
-                        if (BerthPathLength[bei][RobotBuyings[buy_index].x][RobotBuyings[buy_index].y] > 0)
-                        {
-                            // 我也连通
-                            is_link = true;
-                            break;
-                        }
-                        else
-                        {
-                            continue;
-                        }
-                    }
-                }
-                if (is_link)
-                {
-                    // 有连通,相同面积
-                    AreaBuying[buy_index] = AreaBuying[pre_buy_index];
-                    AllocateRobotNum[buy_index] = pre_buy_index; // 分配数目跟bei相同
-                    break;
-                }
-            }
-            if (!is_link)
-            {
-                // 无连通，重新bfs
-                AreaBuying[buy_index] = CalculateArea(buy_index);
-                Area += AreaBuying[buy_index];
-                AllocateRobotNum[buy_index] = buy_index;
-            }
-        }
-    }
-    // double a = 1.22508984e-04;
-    // double b = 4.74150604e-01;
-    // double c = 10.218760209081996;
-    // MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)BerthNum + c);
-
-    double a = 0.00011365;
-    double b = 0.000231;
-    double c = 11.663314621437582;
-    MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)(Area / BerthNum) + c);
-
-    // double a = -9.35046108e-03;
-    // double b = 1.83585986e-07;
-    // double c = 127.90528015346925;
-    // MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)(Area*Area) + c);
-
-    // // 开始分配
-    // for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++){
-    //     if (AllocateRobotNum[buy_index] == buy_index){
-    //         int num = 0;
-    //         for (int after_buy_index = buy_index; after_buy_index < RobotBuyingNum; after_buy_index++){
-    //             // 统计之后几个人跟我连通
-    //             if (AllocateRobotNum[after_buy_index] == buy_index){
-    //                 num++;
-    //             }
-    //         }
-    //         AllocateRobotNum[buy_index] = (int)(MAX_BUY_ROBOT_NUM*((double)(AreaBuying[buy_index])/(double)(Area))/(double)(num));
-    //     }
-    //     else{
-    //         AllocateRobotNum[buy_index] = AllocateRobotNum[AllocateRobotNum[buy_index]];
-    //     }
-    // }
-    // 统计连通的港口数
-    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
-    {
-        if (AllocateRobotNum[buy_index] == buy_index)
-        {
-            for (int bei = 0; bei < BerthNum; bei++)
-            {
-                if (BerthPathLength[bei][RobotBuyings[buy_index].x][RobotBuyings[buy_index].y] > 0)
-                {
-                    robot_buy_link_to_berth[buy_index]++;
-                }
-            }
-        }
-        else
-        {
-            robot_buy_link_to_berth[buy_index] = robot_buy_link_to_berth[AllocateRobotNum[buy_index]];
-        }
-    }
-
-    int rest_robot[MAX_ROBOT_BUYING_NUM] = {0}; // 分配的余数
-    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
-    {
-        if (AllocateRobotNum[buy_index] == buy_index)
-        {
-            rest_robot[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)(AreaBuying[buy_index] / robot_buy_link_to_berth[buy_index]) + c));
-        }
-    }
-
-    // 开始分配
-    for (buy_index = 0; buy_index < RobotBuyingNum; buy_index++)
-    {
-        if (AllocateRobotNum[buy_index] == buy_index)
-        {
-            int num = 0;
-            for (int after_buy_index = buy_index; after_buy_index < RobotBuyingNum; after_buy_index++)
-            {
-                // 统计之后几个人跟我连通
-                if (AllocateRobotNum[after_buy_index] == buy_index)
-                {
-                    num++;
-                }
-            }
-            AllocateRobotNum[buy_index] = (int)((int)ceil(a * (double)AreaBuying[buy_index] + b * (double)(AreaBuying[buy_index] / robot_buy_link_to_berth[buy_index]) + c) / (double)(num));
-            rest_robot[buy_index] -= AllocateRobotNum[buy_index] * num;
-        }
-        else
-        {
-            int rest = 0; // 余数
-            if (rest_robot[AllocateRobotNum[buy_index]] > 0)
-            {
-                rest = rest_robot[AllocateRobotNum[buy_index]];
-                rest_robot[AllocateRobotNum[buy_index]] = 0;
-            }
-            AllocateRobotNum[buy_index] = AllocateRobotNum[AllocateRobotNum[buy_index]];
-            AllocateRobotNum[buy_index] += rest;
-        }
-    }
-}
-
 // 根据海域连通性确定船只最少购买数
 void linkMaxBuyBoat()
 {
@@ -321,24 +174,6 @@ void linkMaxBuyBoat()
         }
     }
     MAX_BUY_BOAT_NUM = max(MAX_BUY_BOAT_NUM, LinkMaxBoatBuying);
-}
-
-//根据港口到交货点的距离计算购买船只数目
-void AllocateBoat(){
-    // double length = 0; // 统计港口到虚拟点的平均
-    for (int bei = 0; bei < BerthNum; bei++){
-        for (int i = 0; i < 4; i++){
-            if (BerthToDeliveryTime[bei][BerthNearestDelivery[bei]][0] != -1){
-                length += BerthToDeliveryTime[bei][BerthNearestDelivery[bei]][0]; // 港口到交货点最短时间(0号方向)
-                break;
-            }
-        }
-    }
-    length /= BerthNum;
-    double a = 0.00254931;
-    double b = 0.00039721;
-    double c = 1.11449407347353;
-    MAX_BUY_BOAT_NUM = max(MAX_BUY_BOAT_NUM, (int)(ceil(a*length+b*length*BerthNum+c)));
 }
 
 // 计算一个位置状态到目的地的H值
@@ -504,4 +339,15 @@ int PositionToPositionAStar(int sx, int sy, int sdir, int d_type, int d_id)
     }
     AStarSearchNodeNum.push_back(search_node_num);
     return -1;
+}
+
+// 是哪张地图
+int WhichMap()
+{
+    if (DeliveryToBerthTime[0][0][0] == -1 && DeliveryToBerthTime[0][0][1] == 487 && DeliveryToBerthTime[0][0][1] == 485)
+        return 1;
+    else if (DeliveryToBerthTime[0][0][0] == 308 && DeliveryToBerthTime[0][0][1] == 307 && DeliveryToBerthTime[0][0][1] == 312)
+        return 2;
+    else
+        return 3;
 }

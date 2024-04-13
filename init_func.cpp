@@ -478,6 +478,7 @@ void Init()
     InitBerthToBerth();
     InitBerthNearestDelivery();
     InitBuyingToBerth();
+    Map = WhichMap();
     InitRobotAndBoatBuy();
     // 输出OK
     printf("OK\n");
