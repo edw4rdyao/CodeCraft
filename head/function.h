@@ -160,6 +160,8 @@ void PrintInitBuyBoatInfo(ofstream &out_file);
 
 void Print(ofstream &out_file, int interval);
 
+void AllocateBoat();
+
 string GetTimeString();
 
 ofstream CreateFile();

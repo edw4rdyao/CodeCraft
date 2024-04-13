@@ -182,9 +182,9 @@ void AllocateRobot()
     // double c = 10.218760209081996;
     // MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)BerthNum + c);
 
-    double a = 0.00020114;
-    double b = -0.00035579;
-    double c = 12.442454480099096;
+    double a = 0.00011365;
+    double b = 0.000231;
+    double c = 11.663314621437582;
     MAX_BUY_ROBOT_NUM = (int)ceil(a * (double)Area + b * (double)(Area / BerthNum) + c);
 
     // double a = -9.35046108e-03;
@@ -321,6 +321,24 @@ void linkMaxBuyBoat()
         }
     }
     MAX_BUY_BOAT_NUM = max(MAX_BUY_BOAT_NUM, LinkMaxBoatBuying);
+}
+
+//根据港口到交货点的距离计算购买船只数目
+void AllocateBoat(){
+    // double length = 0; // 统计港口到虚拟点的平均
+    for (int bei = 0; bei < BerthNum; bei++){
+        for (int i = 0; i < 4; i++){
+            if (BerthToDeliveryTime[bei][BerthNearestDelivery[bei]][0] != -1){
+                length += BerthToDeliveryTime[bei][BerthNearestDelivery[bei]][0]; // 港口到交货点最短时间(0号方向)
+                break;
+            }
+        }
+    }
+    length /= BerthNum;
+    double a = 0.00254931;
+    double b = 0.00039721;
+    double c = 1.11449407347353;
+    MAX_BUY_BOAT_NUM = max(MAX_BUY_BOAT_NUM, (int)(ceil(a*length+b*length*BerthNum+c)));
 }
 
 // 计算一个位置状态到目的地的H值
