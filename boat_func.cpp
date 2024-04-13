@@ -14,14 +14,15 @@ int FindBestBerthFromDelivery(int boat_id, int delivery_id)
             int transport_time = DeliveryToBerthTime[delivery_id][bi][Boats[boat_id].dir] + BerthToDeliveryTimeMax[bi][BerthNearestDelivery[bi]];
             queue<int> tmp = Berths[bi].goods_queue;
             int to_load_goods = min((int)tmp.size(), BoatCapacity);
+            to_load_goods = min(max((MAX_FRAME - Frame - transport_time), 0) * Berths[bi].velocity, to_load_goods);
             for (int j = 0; j < to_load_goods; j++)
             {
                 goods_value += AllGoods[tmp.front()].val;
                 tmp.pop();
             }
             transport_time += (to_load_goods / Berths[bi].velocity);
-            if (MAX_FRAME - Frame < transport_time)
-                continue;
+            // if (MAX_FRAME - Frame < transport_time)
+            //     continue;
             goods_value /= transport_time;
             if (goods_value > max_value)
             {
@@ -29,6 +30,29 @@ int FindBestBerthFromDelivery(int boat_id, int delivery_id)
                 max_value = goods_value;
             }
         }
+    }
+    // 打标
+    int min_to_berth_return = MAX_LENGTH;
+    for (int bj = 0; (bj < BerthNum && best_berth != -1); bj++)
+    {
+        if (bj != best_berth)
+        {
+            for (int dir = 0; dir < 4; dir++)
+            {
+                if (BerthToBerthTime[best_berth][bj][dir] != -1)
+                {
+                    int t = BerthToBerthTime[best_berth][bj][dir] + BerthToDeliveryTimeMax[bj][BerthNearestDelivery[bj]];
+                    if (t < min_to_berth_return)
+                    {
+                        min_to_berth_return = t;
+                    }
+                }
+            }
+        }
+    }
+    if (MAX_FRAME - Frame < DeliveryToBerthTime[delivery_id][best_berth][Boats[boat_id].dir] + min_to_berth_return)
+    {
+        Berths[best_berth].focus = 1;
     }
     return best_berth;
 }
@@ -45,16 +69,17 @@ int FindBestBerthOrGoFromBerth(int boat_id)
             // 计算性价比
             double goods_value = Boats[boat_id].goods_value;
             int transport_time = BerthToBerthTime[Boats[boat_id].dest_berth][bi][Boats[boat_id].dir] + BerthToDeliveryTimeMax[bi][BerthNearestDelivery[bi]];
+            if (MAX_FRAME - Frame < transport_time)
+                continue;
             queue<int> tmp = Berths[bi].goods_queue;
             int to_load_goods = min((int)tmp.size(), BoatCapacity - Boats[boat_id].goods_num); // 还能装的货（囤的货和还能装的货取最小值）
+            to_load_goods = min(max((MAX_FRAME - Frame - transport_time), 0) * Berths[bi].velocity, to_load_goods);
             for (int j = 0; j < to_load_goods; j++)
             {
                 goods_value += AllGoods[tmp.front()].val;
                 tmp.pop();
             }
             transport_time += (to_load_goods / Berths[bi].velocity);
-            if (MAX_FRAME - Frame < transport_time)
-                continue;
             goods_value /= transport_time;
             if (goods_value > max_value)
             {
@@ -66,6 +91,23 @@ int FindBestBerthOrGoFromBerth(int boat_id)
     // 再对比一下直接回交货点的性价比
     if ((double)Boats[boat_id].goods_value / BerthToDeliveryTime[Boats[boat_id].dest_berth][BerthNearestDelivery[Boats[boat_id].dest_berth]][Boats[boat_id].dir] > max_value)
     {
+        int transport_time = BerthToDeliveryTime[Boats[boat_id].dest_berth][BerthNearestDelivery[Boats[boat_id].dest_berth]][Boats[boat_id].dir];
+        int delivery = BerthNearestDelivery[Boats[boat_id].dest_berth];
+        int min_to_berth = MAX_LENGTH; // 从交货点去最近的港口需要的时间
+        for (int bi = 0; bi < BerthNum; bi++)
+        {
+            for (int dir = 0; dir < 4; dir++)
+            {
+                if (DeliveryToBerthTime[delivery][bi][dir] != -1 && DeliveryToBerthTime[delivery][bi][dir] < min_to_berth)
+                {
+                    min_to_berth = DeliveryToBerthTime[delivery][bi][dir];
+                }
+            }
+        }
+        if (MAX_FRAME - Frame < transport_time + min_to_berth * 2)
+        {
+            return -1;
+        }
         return -2;
     }
     return best_berth;
@@ -107,7 +149,7 @@ int BoatToPositionAStar(int bi, int d_type, int d_id)
     int dx = d_type ? Berths[d_id].x : Deliveries[d_id].x;
     int dy = d_type ? Berths[d_id].y : Deliveries[d_id].y;
     shared_ptr<BoatStateNode> start_state_node = make_shared<BoatStateNode>(
-            Boats[bi].x, Boats[bi].y, Boats[bi].dir, 3, false, 0, GetHValue(Boats[bi].x, Boats[bi].y, Boats[bi].dir, -1, d_type, d_id), 1, nullptr);
+        Boats[bi].x, Boats[bi].y, Boats[bi].dir, 3, false, 0, GetHValue(Boats[bi].x, Boats[bi].y, Boats[bi].dir, -1, d_type, d_id), 1, nullptr);
 
     // 开始A*找最短时间
     vector<shared_ptr<BoatStateNode>> openlist_heap;                      // 开放列表，小根堆
@@ -225,7 +267,7 @@ int BoatToPositionAStar(int bi, int d_type, int d_id)
                     // 到新节点的动作，如果是第一步，则记录move，否则和cur的action一样
                     // int action = (cur->pre_state == nullptr) ? move : cur->action;
                     shared_ptr<BoatStateNode> new_state_node = make_shared<BoatStateNode>(
-                            nx, ny, ndir, move, bool(boat_state == 2 && move != 3), new_g_value, GetHValue(nx, ny, ndir, move, d_type, d_id), 1, cur);
+                        nx, ny, ndir, move, bool(boat_state == 2 && move != 3), new_g_value, GetHValue(nx, ny, ndir, move, d_type, d_id), 1, cur);
                     all_nodes[BoatStateNodeKey(nx * N + ny, ndir, new_g_value)] = new_state_node;
                     openlist_heap.push_back(new_state_node);
                     push_heap(openlist_heap.begin(), openlist_heap.end(), CompareBoatStateNode());
@@ -279,8 +321,8 @@ void BoatDispatch()
     { // 对于每艘船
         if (Boats[bi].status == 1)
         { // 恢复状态
-            // 如果没有航线，加入当前位置（其实不需要，因为一定是在主航道范围内）
-            // 如果有航线，就正常不动
+          // 如果没有航线，加入当前位置（其实不需要，因为一定是在主航道范围内）
+          // 如果有航线，就正常不动
         }
         else if (Boats[bi].status == 2)
         { // 装载状态进行讨论
@@ -326,6 +368,10 @@ void BoatDispatch()
                         BoatRoutes[bi].clear();
                         // 去其他港口也要寻路的
                         is_need_astar[bi] = true;
+                    }
+                    else
+                    { // 最后继续留在这
+                        Berths[Boats[bi].dest_berth].focus = 1;
                     }
                 }
             }

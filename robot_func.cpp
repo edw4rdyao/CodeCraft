@@ -511,7 +511,7 @@ void RushPositionAvoid(int ri, int rj, bool (&is_collision_robot)[MAX_ROBOT_NUM]
             Robots[ri].dir = -1;
             is_collision_robot[ri] = true;
         }
-            // 都有货物或者都没有货物则比较性价比
+        // 都有货物或者都没有货物则比较性价比
         else if (Robots[ri].is_goods && Robots[rj].is_goods)
         {
             if (GetGoodsRobotsCompair(ri, rj))
@@ -735,7 +735,7 @@ void BuyARobot(int robot_buying_index)
         // 清除所有港口的聚焦
         for (int i = 0; i < BerthNum; i++)
         {
-            Berths[i].focus = 0;
+            // Berths[i].focus = 0;
         }
     }
 }
