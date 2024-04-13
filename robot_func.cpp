@@ -220,9 +220,6 @@ void RobotDispatchGreedy()
             int goods_id = IsOnGoods(Robots[ri].x, Robots[ri].y);
             if (goods_id == Robots[ri].goods_index)
             {
-                Robots[ri].action = 0;
-                Robots[ri].is_goods++;
-                Robots[ri].goods_stack.push(goods_id);
                 if ((Robots[ri].type == 1 && Robots[ri].is_goods == 1) || Robots[ri].type == 0)
                 { // 如果拿满了，朝着港口走
                     Robots[ri].dir = PsbDirToBerth(Robots[ri].berth_index, Robots[ri].x, Robots[ri].y);
@@ -234,6 +231,9 @@ void RobotDispatchGreedy()
                     Robots[ri].goods_index = -1;
                     Robots[ri].dir = -1;
                 }
+                Robots[ri].action = 0;
+                Robots[ri].goods_stack.push(goods_id);
+                Robots[ri].is_goods++;
             }
             robot_match_num++;
             robots_match[ri] = 1;
