@@ -9,10 +9,14 @@ void PrintMoney(ofstream &out_file)
     out_file << setw(10) << "Goods Money: " << GoodsValue << endl;
 }
 
-// 输出机器人的数量
+// 输出机器人的数.
 void PrintRobotNum(ofstream &out_file)
 {
     out_file << "Robot Num: " << RobotNum << endl;
+    for (int i = 0; i < RobotNum; i++)
+    {
+        out_file << "Robot : " << i << " " << Robots[i].x << " " << Robots[i].y << " " << Robots[i].is_goods << endl;
+    }
 }
 
 // 输出每个港口的货物量，货物总价值以及是否聚焦，以及装载速度
