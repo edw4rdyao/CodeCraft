@@ -118,7 +118,7 @@ void BoatDispatch();
 
 void LoadGoods();
 
-void BuyARobot(int robot_buying_index);
+void BuyARobot(int robot_buying_index, int type);
 
 void BuyABoat(int boat_buying_index, int berth_index);
 

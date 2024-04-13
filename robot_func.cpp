@@ -723,13 +723,13 @@ void PrintRobotsIns()
 }
 
 // 买一个机器人
-void BuyARobot(int robot_buying_index)
+void BuyARobot(int robot_buying_index, int type)
 {
-    printf("lbot %d %d\n", RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y);   // 输出指令
-    Robots[RobotNum] = Robot(RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y); // 机器人的初始化
+    printf("lbot %d %d %d\n", RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y, type);   // 输出指令
+    Robots[RobotNum] = Robot(RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y, type); // 机器人的初始化
     RobotNum++;
-    Money -= ROBOT_BUY_MONEY;    // 花钱
-    OurMoney -= ROBOT_BUY_MONEY; // 花钱
+    Money -= ROBOT_BUY_MONEY[type];    // 花钱
+    OurMoney -= ROBOT_BUY_MONEY[type]; // 花钱
     if (RobotNum >= MAX_BUY_ROBOT_NUM)
     {
         // 清除所有港口的聚焦
@@ -743,6 +743,7 @@ void BuyARobot(int robot_buying_index)
 // 购买机器人，用最大数量以及船的数量来限制，能买就买 (xmc)
 int BuyRobotsXmc()
 {
+    int type = 0;
     int buy = 0;
     if (Frame == 1)
     {
@@ -752,14 +753,14 @@ int BuyRobotsXmc()
             {
                 if (InitBuyingToBuy[j] == -1)
                     break;
-                BuyARobot(i);
+                BuyARobot(i, type);
                 buy = 1;
             }
         }
     }
     else
     { // 后续购买
-        if (Money < ROBOT_BUY_MONEY || RobotNum >= MAX_BUY_ROBOT_NUM)
+        if (Money < ROBOT_BUY_MONEY[type] || RobotNum >= MAX_BUY_ROBOT_NUM)
         {
             return buy;
         }
@@ -804,7 +805,7 @@ int BuyRobotsXmc()
                 }
             }
             AllocateRobotNum[robot_buy_index]--;
-            BuyARobot(robot_buy_index);
+            BuyARobot(robot_buy_index, type);
             buy = 1;
         }
     }

@@ -340,7 +340,7 @@ void BoatDispatch()
             //         best_dilivery = di;
             //     }
             // }
-            if (Boats[bi].goods_num >= BoatCapacity || MAX_FRAME - Frame <= (BerthToDeliveryTime[Boats[bi].dest_berth][BerthNearestDelivery[Boats[bi].dest_berth]][Boats[bi].dir] + 4))
+            if (Boats[bi].goods_num >= BoatCapacity || MAX_FRAME - Frame <= (BerthToDeliveryTime[Boats[bi].dest_berth][BerthNearestDelivery[Boats[bi].dest_berth]][Boats[bi].dir] + 6))
             { // 装满或者不够时间回交货点 就滚
                 RunToDeliveryGun(bi);
                 // 清空路径并且寻路（实际上靠泊的时候路径就一定清空了）
