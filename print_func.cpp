@@ -192,6 +192,9 @@ void PrintInitBuy(ofstream &out_file)
     //     out_file << endl;
     // }
 
+    out_file << "avg_length_berth_delivery: " << length << endl;
+    out_file << endl;
+
     out_file << "AREA: " << Area << endl;
     for (int i = 0; i < RobotBuyingNum; i++)
     {

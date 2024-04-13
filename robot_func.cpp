@@ -162,6 +162,7 @@ void RobotDispatchGreedy()
                 Robots[ri].goods_index = -1;
                 Robots[ri].goods_distance = MAX_LENGTH;
                 Robots[ri].is_goods = 0;
+                Robots[ri].berth_index = -1;
             }
             else
             { // 没到港口（或者不是自己要去的港口），沿着图走（先看有没有找到被标记的优先港口）
@@ -725,7 +726,7 @@ void PrintRobotsIns()
 // 买一个机器人
 void BuyARobot(int robot_buying_index)
 {
-    printf("lbot %d %d\n", RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y);   // 输出指令
+    printf("lbot %d %d %d\n", RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y,0);   // 输出指令
     Robots[RobotNum] = Robot(RobotBuyings[robot_buying_index].x, RobotBuyings[robot_buying_index].y); // 机器人的初始化
     RobotNum++;
     Money -= ROBOT_BUY_MONEY;    // 花钱

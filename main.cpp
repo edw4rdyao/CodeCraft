@@ -145,6 +145,8 @@ BoatBuying BoatBuyings[MAX_BOAT_BUYING_NUM];
 
 Delivery Deliveries[MAX_DELIVERY_NUM];
 
+double length = 0; // 统计港口到虚拟点的平均
+
 
 // 更新每一帧输入信息
 void Input()
@@ -236,6 +238,7 @@ int main()
     Init();
     AllocateRobot();
     linkMaxBuyBoat();
+    AllocateBoat();
 
 #ifdef DEBUG
     ofstream out_file = CreateFile();

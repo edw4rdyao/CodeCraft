@@ -144,6 +144,8 @@ extern int AllocateBoatNum[MAX_BERTH_NUM];
 
 extern vector<int> AStarSearchNodeNum; // 每次Astar搜索的节点数
 
+extern double length; // 统计港口到虚拟点的平均
+
 
 // ---------------------结构体--------------------
 struct BoatRouteState
