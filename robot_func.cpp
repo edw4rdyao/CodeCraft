@@ -69,15 +69,15 @@ void AllocateRobot()
 
     if (Map == 1)
     {
-        MAX_BUY_ROBOT_NUM = 9;
+        MAX_BUY_ROBOT_NUM = 16;
     }
     else if (Map == 2)
     {
-        MAX_BUY_ROBOT_NUM = 15;
+        MAX_BUY_ROBOT_NUM = 16;
     }
     else
     {
-        MAX_BUY_ROBOT_NUM = 8;
+        MAX_BUY_ROBOT_NUM = 16;
     }
 //     double a = -9.35046108e-03;
 //     double b = 1.83585986e-07;
@@ -938,7 +938,7 @@ int BuyRobotsXmc()
     }
     else
     { // 后续购买
-        int type = (Map==2 ? 0 : 1);
+        int type = 0;
         if (Money < ROBOT_BUY_MONEY[type] || RobotNum >= MAX_BUY_ROBOT_NUM)
         {
             return buy;

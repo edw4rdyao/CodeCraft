@@ -18,11 +18,11 @@ void AllocateBoat(){
 //    MAX_BUY_BOAT_NUM = max(MAX_BUY_BOAT_NUM, (int)(ceil(a*length+b*length*BerthNum+c)));
     if (Map == 1)
     {
-        MAX_BUY_BOAT_NUM = 2;
+        MAX_BUY_BOAT_NUM = 1;
     }
     if (Map == 2)
     {
-        MAX_BUY_BOAT_NUM = 2;
+        MAX_BUY_BOAT_NUM = 1;
     }
     if (Map == 3)
     {
